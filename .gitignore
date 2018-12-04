@@ -240,3 +240,7 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+/ephedrine/cpu_instrs/cpu_instrs
+/ephedrine/.vscode
+*.gb
+*.bin
