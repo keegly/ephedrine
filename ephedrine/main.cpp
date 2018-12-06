@@ -29,16 +29,17 @@ int main(int argc, char** argv) {
 		return -1;
 	}
 
-	GLFWwindow* window = glfwCreateWindow(640, 480, "GB Emu", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(320, 240, "GB Emu", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
 		return -1;
 	}
 
 	glfwMakeContextCurrent(window);
+	//glfwSwapInterval(1);
 
-	GLubyte pixels[8192]{ 0xFF };
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 64, 32, 0, GL_RED, GL_UNSIGNED_BYTE, &pixels);
+	//GLubyte pixels[8192]{ 0x00 };
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, 320, 240, 0, GL_RED, GL_UNSIGNED_BYTE, &pixels);
 
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -47,11 +48,25 @@ int main(int argc, char** argv) {
 		//	if (i % 2)
 		//		pixels[i] = 0xFF; //gb.memory[i + 0x8000];
 		//}
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 64, 32, GL_RED, GL_UNSIGNED_BYTE, &pixels);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 320, 240, GL_RED, GL_UNSIGNED_BYTE, &pixels);
 		
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+		//glfwSwapBuffers(window);
+		//glfwPollEvents();
+		if (gb.cycles > 0) {
+			--gb.cycles;
+			continue; // still not done executing previous instruction
+		}
 		gb.step();
+
+		// en/disable interrupts after instruction AFTER the DI/EI instruction :S
+		if (gb.get_prev_opcode() == 0xF3) {
+			// DI
+			gb.disable_interrupt();
+		}
+		if (gb.get_prev_opcode() == 0xFA) {
+			// EI
+			gb.enable_interrupt();
+		}
 	}
 
 	glfwTerminate();
