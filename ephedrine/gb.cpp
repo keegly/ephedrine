@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <iostream>
-
+#include <array>
 #include "gb.h"
 //#include "instructions.h"
 
@@ -13,11 +13,14 @@ Gameboy::Gameboy()
 void Gameboy::reset()
 {
 	pc = 0x0000;
+	ime = false;
 	memory[0xFF05] = 00;
 	memory[0xFF06] = 00;
 	memory[0xFF07] = 00;
 	memory[0xFF10] = 0x80;
 	memory[0xFF11] = 0xBF;
+	// turn on LCD
+	memory[0xFF40] |= 1U << 7;
 
 	// Load boot rom into memory
 	for (int i = 0; i < 256; ++i) {
@@ -31,9 +34,31 @@ void Gameboy::load(uint8_t *cartridge, long size)
 		memory[i] = cartridge[i];
 }
 
-void Gameboy::update_graphics()
+void Gameboy::handle_interrupts()
 {
+	if (!ime)
+		return; // interrupts globally disabled
+	// check register 0xFF0F to see which interrupt was generated
+	const uint16_t offset[]{ 0x0040, 0x0048, 0x0050, 0x0058, 0x0060 };
+	uint16_t address = 0x0000;
+	uint8_t mask = 0x01;
+	for (uint8_t i = 0; i < 5; ++i) {
+		if (mask && memory[0xFF0F]) {
+			address = offset[i];
+			// clear teh bit
+			memory[0xFF0F] &= ~(1U << i);
+			break;
+		}
+		mask <<= 1;
+	}
+	if (address == 0x0000) return;
+	// put current pc on stack
+	memory[sp] = pc >> 8;
+	memory[sp - 1] = pc;
+	sp -= 2;
 
+	// set pc to the correct interrupt handler address
+	pc = address;
 }
 
 void Gameboy::step()
@@ -305,109 +330,216 @@ void Gameboy::step()
 	// 8 bit ALU
 	case Instruction::sub_d8:
 	{
-		registers[(uint8_t)Register::a] -= memory[pc + 1];
+		uint8_t res = registers[(uint8_t)Register::a] - memory[pc + 1];
 		// TODO: set flags
-		if (registers[(uint8_t)Register::a] == memory[pc + 1]) set_z();
+		if (res == 0) 
+			set_z();
+		else
+			reset_z();
+		if (res < 0)
+			set_c();
+		else
+			reset_c();
+		if ((registers[(uint8_t)Register::a] ^ (-memory[pc + 1]) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
 		set_n();
 		
+		registers[(uint8_t)Register::a] = res;
 		pc += 2;
 		cycles = 8;
 		break;
 	}
 	case Instruction::sub_b:
 	{
-		registers[(uint8_t)Register::a] -= registers[(uint8_t)Register::b];
+		uint8_t res = registers[(uint8_t)Register::a] - registers[(uint8_t)Register::b];
+		if (res == 0)
+			set_z();
+		else
+			reset_z();
+		if (res < 0)
+			set_c();
+		else
+			reset_c();
+		if ((registers[(uint8_t)Register::a] ^ (-registers[(uint8_t)Register::b]) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
 		set_n();
-		if (registers[(uint8_t)Register::a] == registers[(uint8_t)Register::b]) set_z();
-		// TODO: set flags
+
+		registers[(uint8_t)Register::a] = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_a:
-		// TODO: Z flag
-		registers[(uint8_t)Register::a] ^= registers[(uint8_t)Register::a];
-		++pc;
-		cycles = 4;
-		break;
-	case Instruction::inc_b:
-		++registers[(uint8_t)Register::b];
-		reset_n();
-		++pc;
-		cycles = 4;
-		break;
-	case Instruction::inc_c:
-		++registers[(uint8_t)Register::c];
-		reset_n();
-		++pc;
-		cycles = 4;
-		break;
-	case Instruction::inc_h:
-		++registers[(uint8_t)Register::h];
-		reset_n();
-		++pc;
-		cycles = 4;
-		break;
-	case Instruction::dec_a:
-		--registers[(uint8_t)Register::a];
-		if (registers[(uint8_t)Register::a] == 0)
+	{
+		uint8_t res = registers[(uint8_t)Register::a] ^ registers[(uint8_t)Register::a];
+		if (res == 0)
 			set_z();
 		else
 			reset_z();
-		// TODO: half carry flag
-		set_n();
+		reset_c();
+		reset_h();
+		reset_n();
+		registers[(uint8_t)Register::a] = res;
 		++pc;
 		cycles = 4;
 		break;
-	case Instruction::dec_b:
-		--registers[(uint8_t)Register::b];
+	}
+	case Instruction::inc_b:
+	{
+		uint8_t res = registers[(uint8_t)Register::b] + 1;
+		registers[(uint8_t)Register::b] = res;
 		if (registers[(uint8_t)Register::b] == 0)
 			set_z();
 		else
 			reset_z();
-		set_n();
+		if ((registers[(uint8_t)Register::b] ^ 1 ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
+		reset_n();
 		++pc;
 		cycles = 4;
 		break;
-	case Instruction::dec_c:
-		--registers[(uint8_t)Register::c];
+	}
+	case Instruction::inc_c:
+	{
+		uint8_t res = registers[(uint8_t)Register::c] + 1;
+		registers[(uint8_t)Register::c] = res;
 		if (registers[(uint8_t)Register::c] == 0)
 			set_z();
 		else
 			reset_z();
+		if ((registers[(uint8_t)Register::c] ^ 1 ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
+		reset_n();
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::inc_h:
+	{
+		uint8_t res = registers[(uint8_t)Register::h] + 1;
+		registers[(uint8_t)Register::h] = res;
+		if (registers[(uint8_t)Register::h] == 0)
+			set_z();
+		else
+			reset_z();
+		if ((registers[(uint8_t)Register::h] ^ 1 ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
+		reset_n();
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::dec_a:
+	{
+		uint8_t res = registers[(uint8_t)Register::a] - 1;
+		registers[(uint8_t)Register::a] = res;
+		if (registers[(uint8_t)Register::a] == 0)
+			set_z();
+		else
+			reset_z();
+		if ((registers[(uint8_t)Register::a] ^ (-1) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
 		set_n();
 		++pc;
 		cycles = 4;
 		break;
+	}
+	case Instruction::dec_b:
+	{
+		uint8_t res = registers[(uint8_t)Register::b] - 1;
+		registers[(uint8_t)Register::b] = res;
+		if (registers[(uint8_t)Register::b] == 0)
+			set_z();
+		else
+			reset_z();
+		if ((registers[(uint8_t)Register::b] ^ (-1) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
+		set_n();
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::dec_c:
+	{
+		uint8_t res = registers[(uint8_t)Register::c] - 1;
+		registers[(uint8_t)Register::c] = res;
+		if (registers[(uint8_t)Register::c] == 0)
+			set_z();
+		else
+			reset_z();
+		if ((registers[(uint8_t)Register::c] ^ (-1) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
+		set_n();
+		++pc;
+		cycles = 4;
+		break;
+	}
 	case Instruction::dec_d:
-		--registers[(uint8_t)Register::d];
+	{
+		uint8_t res = registers[(uint8_t)Register::d] - 1;
+		registers[(uint8_t)Register::d] = res;
 		if (registers[(uint8_t)Register::d] == 0)
 			set_z();
 		else
 			reset_z();
+		if ((registers[(uint8_t)Register::d] ^ (-1) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
 		set_n();
 		++pc;
 		cycles = 4;
 		break;
+	}
 	case Instruction::dec_e:
-		--registers[(uint8_t)Register::e];
+	{
+		uint8_t res = registers[(uint8_t)Register::e] - 1;
+		registers[(uint8_t)Register::e] = res;
 		if (registers[(uint8_t)Register::e] == 0)
 			set_z();
 		else
 			reset_z();
+		if ((registers[(uint8_t)Register::e] ^ (-1) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
 		set_n();
 		++pc;
 		cycles = 4;
 		break;
+	}
 	case Instruction::cp_d8:
 	{
-		//TODO: Finish Flags
 		uint8_t res = registers[(uint8_t)Register::a] - memory[pc + 1];
-		if (res == 0U)
+		if (res == 0)
 			set_z();
 		else
 			reset_z();
 		set_n();
+		if ((registers[(uint8_t)Register::a] ^ (-memory[pc+1]) ^ res) & 0x10)
+			set_h();
+		else
+			reset_h();
+		if (res < 0)
+			set_c();
+		else
+			reset_c();
 		pc += 2;
 		cycles = 8;
 		break;
@@ -465,20 +597,20 @@ void Gameboy::step()
 	// Rotates and shifts
 	case Instruction::rla:
 	{
-		// if bit is 0 set Z
-		// reset N
-		// reset H
-		// put bit in C
-		//registers[(uint8_t)Register::f]
-		uint8_t bit = (registers[(uint8_t)Register::a] << 1);
+		uint8_t bit = (registers[(uint8_t)Register::a] >> 7) & 0x01;
+		registers[(uint8_t)Register::a] <<= 1;
+		// save old carry to put back in bit 0
+		uint8_t carry = (registers[(uint8_t)Register::f] >> 4) & 0x01;
+		// put bit in carry flag
 		registers[(uint8_t)Register::f] ^= (-bit ^ registers[(uint8_t)Register::f]) & (1U << 4);
-		if (!bit)
+		if (bit == 0)
 			set_z();
 		else
 			reset_z();
 		reset_n();
 		reset_h();
-		registers[(uint8_t)Register::c] <<= bit;
+		// put the previous carry back in the 0th position
+		registers[(uint8_t)Register::a] ^= (-carry ^ registers[(uint8_t)Register::a]) & (1U << 0);
 		++pc;
 		cycles = 4;
 		break;
@@ -513,6 +645,8 @@ void Gameboy::step()
 		cycles = 4;
 		break;
 	case Instruction::halt:
+		// suspend and wait for interrupts
+		if (!ime) ++pc; //act as a nop if interrupts are disabled
 		cycles = 4;
 		break;
 	default:

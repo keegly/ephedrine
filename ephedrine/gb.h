@@ -8,11 +8,18 @@ class Gameboy
 		void update_graphics();
 		void reset();
 		void load(uint8_t*, long);
-		uint8_t memory[0xFFFF]{0x00};
+		uint8_t memory[0xFFFF]{};
 		int cycles;
 		uint8_t get_prev_opcode() { return (uint8_t)prev_opcode; }
 		void disable_interrupt() { ime = false; }
 		void enable_interrupt() { ime = true; }
+		void handle_interrupts();
+		uint8_t get_LY() { return memory[0xFF44]; }
+		inline void set_LY(uint8_t LY) {
+			if (LY > 153)
+				LY = 0;
+			memory[0xFF44] = LY; 
+		}
 	private:
 		enum class Register : uint8_t {
 			a,
@@ -347,14 +354,14 @@ class Gameboy
 		void set_z() { registers[(uint8_t)Register::f] |= (1U << 7); }
 		void reset_z() { registers[(uint8_t)Register::f] &= ~(1U << 7); }
 		void toggle_z() { registers[(uint8_t)Register::f] ^= 1U << 7; }
-		void set_n() { registers[(uint8_t)Register::f] |= (1U << 6); }
+		#define set_n() registers[(uint8_t)Register::f] |= (1U << 6); 
 		void reset_n() { registers[(uint8_t)Register::f] &= ~(1U << 6); }
 		void toggle_n() { registers[(uint8_t)Register::f] ^= 1U << 6; }
 		void set_h() { registers[(uint8_t)Register::f] |= (1U << 5); }
-		void reset_h(){ registers[(uint8_t)Register::f] &= ~(1U << 5); }
+		#define reset_h() registers[(uint8_t)Register::f] &= ~(1U << 5);
 		void toggle_h() { registers[(uint8_t)Register::f] ^= 1U << 5; }
 		void set_c() { registers[(uint8_t)Register::f] |= (1U << 4); }
-		void reset_c() { registers[(uint8_t)Register::f] &= ~(1U << 4); }
+		#define reset_c() registers[(uint8_t)Register::f] &= ~(1U << 4);
 		void toggle_c() { registers[(uint8_t)Register::f] ^= 1U << 4; }
 		// Memory
 		//std::array<uint8_t, 0xFFFF> memory;
