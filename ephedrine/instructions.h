@@ -1,6 +1,6 @@
 #pragma once
 
-struct Instruction {
+struct DecodedInstruction {
 	uint8_t opcode;
 	std::string name;
 	// addressing mde
@@ -8,9 +8,10 @@ struct Instruction {
 	// dest?
 	int length;
 	int cycles;
+	//void (*fp)(void);
 };
 
-Instruction instructions[] {
+const DecodedInstruction instructions[] {
 	{0x00, "nop", 1, 4},
 	{0x01, "ld BC, d16", 3, 12},
 	{0x02, "ld (BC), A", 1, 8},
@@ -20,6 +21,6 @@ Instruction instructions[] {
 	{0x06, "ld B, d8", 2, 8}
 };
 
-Instruction cb_instructions[]{
+const DecodedInstruction cb_instructions[]{
 	{0x00, "rlc b", 1, 4}
 };
