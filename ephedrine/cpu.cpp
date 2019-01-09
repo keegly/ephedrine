@@ -1,20 +1,37 @@
 #include <cstdint>
+#include <iostream>
 #include "cpu.h"
 #include "mmu.h"
+#include "logger.h"
 #include "instructions.h"
 
-CPU::CPU(MMU &m) : mmu(m), pc(0x0000)
+CPU::CPU(MMU &m) : mmu(m), pc(0x0000), sp(0xFFFE)
 {
+	registers.af = 0x01B0;
+	registers.bc = 0x0013;
+	registers.de = 0x00D8;
+	registers.hl = 0x014D;
+}
+
+void CPU::print()
+{
+	Logger::logger->info("Registers: af:{0:04x} bc:{1:04x} de:{2:04x} hl:{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
+	Logger::logger->info("pc: {0:04x} sp: {1:x}", pc, sp);
+	Logger::logger->info("Z: {0} C: {1}", flags.z, flags.c);
+
 }
 
 uint8_t CPU::step()
 {
 	uint8_t op = mmu.read_byte(pc);
 	//auto inst = instructions[op];
+	char c;
+	if (pc == 0x005d) std::cin >> c;
+	if (pc == 0x0095) std::cin >> c;
+	//if (pc == 0x0095) return 0;
 	// fetch?
 	Instruction opcode;
 	opcode = (Instruction)mmu.read_byte(pc);
-
 	switch (opcode) {
 		// CB prefixed opcodes
 	case Instruction::prefix_cb:
@@ -36,7 +53,8 @@ uint8_t CPU::step()
 			//registers[(uint8_t)Register::f]
 			uint8_t bit = (registers.c << 1);
 			// carry flag holds old bit 7
-			flags.c = bit;
+			bit == 0 ? flags.c = true : flags.c = false;
+			//flags.c = bit;
 			// update Z flag
 			if (bit == 0) flags.z = true;
 			// reset subtract flag
@@ -159,16 +177,14 @@ uint8_t CPU::step()
 		break;
 	case Instruction::ld_a_de:
 	{
-		uint16_t de = (registers.d << 8) + registers.e;
-		registers.a = mmu.read_byte(de);
+		registers.a = mmu.read_byte(registers.de);
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::ld_a_at_hl:
 	{
-		uint16_t hl = (registers.h << 8) + registers.l;
-		registers.a = mmu.read_byte(hl);
+		registers.a = mmu.read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
@@ -183,8 +199,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ldd_hl_a: // ld (HL-), A
 	{
-		uint16_t address = (registers.h << 8) + registers.l;
-		mmu.write_byte(address, registers.a);
+		mmu.write_byte(registers.hl, registers.a);
 		--registers.l;
 		// check underflow and if so, dec H too
 		if (registers.l == UINT8_MAX)
@@ -209,8 +224,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ld_hl_a:
 	{
-		uint16_t address = (registers.h << 8) + registers.l;
-		mmu.write_byte(address, registers.a);
+		mmu.write_byte(registers.hl, registers.a);
 		++pc;
 		cycles = 8;
 		break;
@@ -233,8 +247,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ldi_hl_a:
 	{
-		uint16_t address = (registers.h << 8) + registers.l;
-		mmu.write_byte(address, registers.a);
+		mmu.write_byte(registers.hl, registers.a);
 		++registers.l;
 		if (registers.l == 0)
 			++registers.h;
@@ -277,12 +290,11 @@ uint8_t CPU::step()
 		// 8 bit ALU
 	case Instruction::add_a_hl:
 	{
-		uint16_t hl = (registers.h << 8) + registers.l;
-		uint8_t value = mmu.read_byte(hl);
+		uint8_t value = mmu.read_byte(registers.hl);
 		uint16_t res = registers.a + value;
 		registers.a += value;
 
-		if (res == 0)
+		if (registers.a == 0)
 			flags.z = true;
 		else
 			flags.z = false;
@@ -290,6 +302,7 @@ uint8_t CPU::step()
 			flags.c = true;
 		else
 			flags.c = false;
+		// todo: fix half carry flag
 		if ((registers.a ^ (value) ^ res) & 0x10)
 			flags.h = true;
 		else
@@ -518,14 +531,13 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_hl:
 	{
-		uint16_t hl = (registers.h << 8) + registers.l;
-		uint8_t res = registers.a - mmu.read_byte(hl);
+		uint8_t res = registers.a - mmu.read_byte(registers.hl);
 		if (res == 0)
 			flags.z = true;
 		else
 			flags.z = false;
 		flags.n = true;
-		if ((registers.a ^ (-hl) ^ res) & 0x10)
+		if ((registers.a ^ (-registers.hl) ^ res) & 0x10)
 			flags.h = true;
 		else
 			flags.h = false;
@@ -539,16 +551,12 @@ uint8_t CPU::step()
 	}
 	// 16 bit arithmetic
 	case Instruction::inc_hl:
-		++registers.l;
-		if (registers.l == 0)
-			++registers.h;
+		++registers.hl;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::inc_de:
-		++registers.e;
-		if (registers.e == 0)
-			++registers.d;
+		++registers.de;
 		++pc;
 		cycles = 8;
 		break;

@@ -245,3 +245,5 @@ ModelManifest.xml
 *.gb
 *.bin
 *.zip
+/ephedrine/spdlog
+/ephedrine/catch.hpp

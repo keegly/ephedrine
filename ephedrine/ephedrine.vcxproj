@@ -158,16 +158,19 @@
   <ItemGroup>
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="gb.cpp" />
-    <ClCompile Include="gpu.cpp" />
+    <ClCompile Include="logger.cpp" />
+    <ClCompile Include="ppu.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mmu.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="catch.hpp" />
     <ClInclude Include="cpu.h" />
     <ClInclude Include="gb.h" />
     <ClInclude Include="instructions.h" />
+    <ClInclude Include="logger.h" />
     <ClInclude Include="mmu.h" />
-    <ClInclude Include="gpu.h" />
+    <ClInclude Include="ppu.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

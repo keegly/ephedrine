@@ -1,7 +1,13 @@
+#include <memory>
+
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
+
 #include "gb.h"
 #include "cpu.h"
 #include "mmu.h"
-#include "gpu.h"
+#include "ppu.h"
 
 //#include "instructions.h"
 
@@ -13,6 +19,14 @@ Gameboy::Gameboy(std::vector<uint8_t> cart) : mmu(cart), cpu(mmu), ppu(mmu)
 void Gameboy::load(std::vector<uint8_t> cartridge)
 {
 	mmu.load(cartridge);
+}
+
+void Gameboy::tick(int ticks)
+{
+	// step x ticks
+	cpu.step();
+	//handle interrupts
+	ppu.update(cpu.cycles);
 }
 
 //void Gameboy::handle_interrupts()

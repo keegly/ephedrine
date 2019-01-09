@@ -3,7 +3,7 @@
 
 #include "cpu.h"
 #include "mmu.h"
-#include "gpu.h"
+#include "ppu.h"
 
 class Gameboy
 {
@@ -11,10 +11,11 @@ class Gameboy
 		Gameboy(std::vector<uint8_t> cart);
 		void reset();
 		void handle_interrupts();
+		void tick(int ticks);
 		void load(std::vector<uint8_t> cart);
 		CPU cpu;
 		MMU mmu;
-		GPU ppu;
+		PPU ppu;
 	private:
 	
 };
