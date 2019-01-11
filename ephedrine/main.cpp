@@ -35,18 +35,22 @@
 //}
 
 int main(int argc, char** argv) {
+	Logger::logger->set_level(spdlog::level::debug);
 	bool quit = false;
-	std::vector<uint8_t> cart; 
-	//std::ifstream in("../06-ld r,r.gb", std::ios::binary);
-	std::ifstream in("../cpu_instrs.gb", std::ios::binary);
+	std::vector<uint8_t> cart;
+	std::ifstream in("../06-ld r,r.gb", std::ios::binary);
+	//std::ifstream in("../cpu_instrs.gb", std::ios::binary);
 	//std::ifstream in("../tetris.gb", std::ios::binary);
 	in.seekg(0, std::ios::end);
 	size_t sz = in.tellg();
 	in.seekg(0, std::ios::beg);
 	cart.resize(sz / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
-	Logger::logger->info("cart size 0x{0:x} bytes", sz);
-	std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
+	//Logger::logger->info("cart size 0x{0:x} bytes", sz);
+	//cart.clear();
+	Logger::logger->info("cart size 0x{0:x} bytes", cart.size());
+	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
+	auto gb = std::make_unique<Gameboy>(cart);
 	// give us time to attach debugger
 //	std::string s;
 //	std::cin >> s;
@@ -55,11 +59,14 @@ int main(int argc, char** argv) {
 		std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
 	}
 
-	SDL_Window *win = SDL_CreateWindow("Ephedrine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 160, 144, SDL_WINDOW_SHOWN);
+	SDL_Window *win = SDL_CreateWindow("Ephedrine", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 160 * 2, 144 * 2, SDL_WINDOW_SHOWN);
 	if (win == nullptr) {
 		std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
 		return 1;
 	}
+
+	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 512, 512, SDL_WINDOW_SHOWN);
+	SDL_Renderer *bgren = SDL_CreateRenderer(bgmap, -1, SDL_RENDERER_ACCELERATED);
 
 	SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 		if (ren == nullptr) {
@@ -67,24 +74,27 @@ int main(int argc, char** argv) {
 			return 1;
 		}
 	//SDL_SetRenderDrawColor(ren, 256, 128, 0, SDL_ALPHA_OPAQUE);
-	SDL_SetRenderDrawColor(ren, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_SetRenderDrawColor(ren, 0, 0xff, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(ren);
-	
-	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB332, SDL_TEXTUREACCESS_STATIC,160,144);
-	//SDL_SetRenderDrawColor(ren, 256, 128, 0, SDL_ALPHA_OPAQUE);
-	//auto *surface = SDL_CreateRGBSurfaceFrom(&gb.memory[0x8000], 160, 144, sizeof(uint8_t), 160 * sizeof(uint8_t), )
+
+	SDL_SetRenderDrawColor(bgren, 0, 0xff, 0, SDL_ALPHA_OPAQUE);
+	SDL_RenderClear(bgren);
+
+	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC,160,144);
+	SDL_Texture *bgtex = SDL_CreateTexture(bgren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 256, 256);
+
 	//std::thread render_thread(update_screen, std::ref(win));
-	
+
 	using namespace std::chrono_literals;
 	constexpr auto tickrate = 16.66ms;
-	// A vertical refresh happens every 70224 cycles (17556 clocks) (140448 in GBC double speed mode): 59,7275 Hz 
+	// A vertical refresh happens every 70224 cycles (17556 clocks) (140448 in GBC double speed mode): 59,7275 Hz
 	constexpr int max_cycles = 70224;
 	int curr_screen_cycles = 0;
 	SDL_Event event;
 	bool running = true;
 	while (!quit) {
 		auto start = std::chrono::high_resolution_clock::now();
-		
+
 		if (running) {
 			while (curr_screen_cycles < max_cycles) {
 				if (gb->cpu.cycles > 0) {
@@ -100,8 +110,8 @@ int main(int argc, char** argv) {
 			{
 				switch (event.type)
 				{
-				case SDL_QUIT: 
-					quit = true; 
+				case SDL_QUIT:
+					quit = true;
 					break;
 				case SDL_KEYDOWN:
 					switch (event.key.keysym.sym)
@@ -113,7 +123,7 @@ int main(int argc, char** argv) {
 					case SDLK_p:
 						gb->cpu.print();
 						gb->ppu.print();
-						Logger::logger->info("--------------------------------");
+						Logger::logger->debug("--------------------------------");
 						break;
 					default:
 						break;
@@ -128,22 +138,26 @@ int main(int argc, char** argv) {
 		//	gb.enable_interrupt();
 		//}
 		curr_screen_cycles = 0;
-		
-		//SDL_UpdateTexture(tex, nullptr, gpu.render(), 160);
-		
-		/*auto pixels = gb->ppu.refresh()->data();
-		SDL_UpdateTexture(tex, nullptr, pixels, 160);*/
+
+
+
+		//auto pixels = gb->ppu.refresh().get();
+		SDL_UpdateTexture(tex, nullptr, gb->ppu.refresh().get(), 160 * 3);
 		SDL_RenderClear(ren);
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
-		//SDL_Delay(1);
+
+		SDL_UpdateTexture(bgtex, nullptr, gb->ppu.refresh_bg().get(), 256 * 3);
+		SDL_RenderClear(bgren);
+		SDL_RenderCopy(bgren, bgtex, nullptr, nullptr);
+		SDL_RenderPresent(bgren);
+		SDL_Delay(1);
 		auto end = std::chrono::high_resolution_clock::now();
 		auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 		std::ostringstream s;
-		//s << "Loop took " << duration.count() << " ms (" << duration_us.count() << " us)" << std::endl;
-		//std::cout << s.str() << std::endl;
-		//SDL_SetWindowTitle(win, s.str().c_str());
+		s << "Loop took " << duration.count() << " ms (" << duration_us.count() << " us)" << std::endl;
+		SDL_SetWindowTitle(win, s.str().c_str());
 
 		if (duration < tickrate) {
 			// sleep for remaining time
@@ -154,6 +168,11 @@ int main(int argc, char** argv) {
 	//render_thread.join();
 	SDL_DestroyWindow(win);
 	SDL_DestroyRenderer(ren);
+	SDL_DestroyTexture(tex);
+
+	SDL_DestroyWindow(bgmap);
+	SDL_DestroyRenderer(bgren);
+	SDL_DestroyTexture(bgtex);
 	SDL_Quit();
 
 	return 0;

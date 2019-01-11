@@ -17,7 +17,7 @@ class Gameboy
 		MMU mmu;
 		PPU ppu;
 	private:
-	
+
 };
 
 #endif // !GB_H

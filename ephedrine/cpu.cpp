@@ -15,9 +15,9 @@ CPU::CPU(MMU &m) : mmu(m), pc(0x0000), sp(0xFFFE)
 
 void CPU::print()
 {
-	Logger::logger->info("Registers: af:{0:04x} bc:{1:04x} de:{2:04x} hl:{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
-	Logger::logger->info("pc: {0:04x} sp: {1:x}", pc, sp);
-	Logger::logger->info("Z: {0} C: {1}", flags.z, flags.c);
+	Logger::logger->debug("Registers: af:{0:04x} bc:{1:04x} de:{2:04x} hl:{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
+	Logger::logger->debug("pc: {0:04x} sp: {1:x}", pc, sp);
+	Logger::logger->debug("Z: {0} C: {1}", flags.z, flags.c);
 
 }
 
@@ -26,9 +26,11 @@ uint8_t CPU::step()
 	uint8_t op = mmu.read_byte(pc);
 	//auto inst = instructions[op];
 	char c;
-	if (pc == 0x005d) std::cin >> c;
-	if (pc == 0x0095) std::cin >> c;
-	//if (pc == 0x0095) return 0;
+	//if (pc == 0x0040) std::cin >> c; // bg tile map written
+	//if (pc == 0x0055) std::cin >> c; // bg scroll count and turning on lcd
+	//if (pc == 0x005d) std::cin >> c; // nintendo logo scaled and copied to vram
+	//if (pc == 0x0095) std::cin >> c;
+	//if (pc == 0x0040) std::cin >> c;
 	// fetch?
 	Instruction opcode;
 	opcode = (Instruction)mmu.read_byte(pc);
@@ -51,17 +53,24 @@ uint8_t CPU::step()
 			// reset H
 			// put bit in C
 			//registers[(uint8_t)Register::f]
-			uint8_t bit = (registers.c << 1);
+			//uint8_t bit = (registers.c << 1);
+			uint8_t bit = (registers.c >> 7) & 0x01;
+			registers.c <<= 1;
+			uint8_t carry;
+			flags.c == true ? carry = 0x01 : carry = 0x00;
 			// carry flag holds old bit 7
-			bit == 0 ? flags.c = true : flags.c = false;
+			bit == 1U ? flags.c = true : flags.c = false;
 			//flags.c = bit;
 			// update Z flag
-			if (bit == 0) flags.z = true;
+			bit == 0 ? flags.z = true : flags.z = false;
+			//flags.z = false;
 			// reset subtract flag
 			flags.n = false;
 			// reset half carry flag
 			flags.h = false;
-			registers.c <<= 1;
+
+			// put the previous carry back in the 0th position
+			registers.c ^= (-carry ^ registers.c) & (1U << 0);
 			pc += 2;
 			cycles = 8;
 			break;
@@ -191,8 +200,8 @@ uint8_t CPU::step()
 	}
 	case Instruction::ld_a16_a:
 	{
-		uint16_t address = (mmu.read_byte(pc+1) << 8) + mmu.read_byte(pc);
-		registers.a = mmu.read_byte(address);
+		uint16_t address = (mmu.read_byte(pc+2) << 8) + mmu.read_byte(pc + 1);
+		mmu.write_byte(address, registers.a);
 		cycles = 16;
 		pc += 3;
 		break;
@@ -200,10 +209,7 @@ uint8_t CPU::step()
 	case Instruction::ldd_hl_a: // ld (HL-), A
 	{
 		mmu.write_byte(registers.hl, registers.a);
-		--registers.l;
-		// check underflow and if so, dec H too
-		if (registers.l == UINT8_MAX)
-			--registers.h;
+		--registers.hl;
 		++pc;
 		cycles = 8;
 		break;
@@ -248,9 +254,7 @@ uint8_t CPU::step()
 	case Instruction::ldi_hl_a:
 	{
 		mmu.write_byte(registers.hl, registers.a);
-		++registers.l;
-		if (registers.l == 0)
-			++registers.h;
+		++registers.hl;
 		++pc;
 		cycles = 8;
 		break;
@@ -608,10 +612,7 @@ uint8_t CPU::step()
 		flags.c == true ? carry = 0x01 : carry = 0x00;
 		// put bit in carry flag
 		bit == 0 ? flags.c = false : flags.c = true;
-		if (bit == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		flags.z = false;
 		flags.n = false;
 		flags.h = false;
 		// put the previous carry back in the 0th position
@@ -655,7 +656,9 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	default:
-		printf("Unknown opcode 0x%0.2X at PC 0x%0.4X\n", opcode, pc);
+		Logger::logger->error("Unknown opcode 0x{0:02x} at PC 0x{1:04x}", (uint8_t)opcode, pc);
+		halted = true;
+		//printf("Unknown opcode 0x%0.2X at PC 0x%0.4X\n", opcode, pc);
 		//std::cerr << "Unknown Opcode: " << std::hex << opcode << std::dec << std::endl;
 		break;
 	}

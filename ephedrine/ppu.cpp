@@ -12,7 +12,41 @@ void PPU::print()
 	uint8_t currLY = mmu.read_byte(LY);
 	uint8_t scx = mmu.read_byte(SCX);
 	uint8_t scy = mmu.read_byte(SCY);
-	Logger::logger->info("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
+	Logger::logger->debug("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
+}
+
+Pixel PPU::get_color(uint8_t tile)
+{
+	uint8_t bgp = mmu.read_byte(BGP);
+	Pixel pixel;
+
+
+	switch (tile) {
+	case 0:
+		// bits 0-1 of BGP
+		bgp &= 3U;
+		pixel = palette[bgp];
+		break;
+	case 1:
+		// bits 2-3
+		bgp = (bgp >> 2) & 3U;
+		pixel = palette[bgp];
+		break;
+	case 2:
+		// bits 4-5
+		bgp = (bgp >> 4) & 3U;
+		pixel = palette[bgp];
+		break;
+	case 3:
+		// bits 6-7
+		bgp = (bgp >> 6) & 3U;
+		pixel = palette[bgp];
+		break;
+	default:
+		break;
+	}
+
+	return pixel;
 }
 
 void PPU::update(int cycles)
@@ -27,32 +61,22 @@ void PPU::update(int cycles)
 	// Total - 456 cycles.
 	// Do nothing if LCD disabled
 	const uint8_t lcdc = mmu.read_byte(LCDC);
-	/*if (((lcdc >> 7) & 1U) == 0)
-		return;*/
+	if (((lcdc >> 7) & 1U) == 0)
+		return;
 
 	const uint8_t currLY = mmu.read_byte(LY);
 
-	if (currLY == 144) {
-		// v blank (set bit 0 of 0xFF0F)
-		// set mode 1 in 0xFF41
-		uint8_t stat = mmu.read_byte(STAT);
-		mmu.write_byte(STAT, stat |= 1U << 0);
-		//gb.memory[0xFF0F] |= 1U << 0;
-		vblank = true;
-		Logger::logger->info("V-Blank");
-	}
-
-	if (curr_scanline_cycles <= 80) {
-		Logger::logger->info("OAM DMA");
+	if (curr_scanline_cycles <= 80 && currLY < 144 && !oam_done) {
+		//Logger::logger->debug("OAM DMA");
 		// OAM DMA XFER
 		// set mode
+		oam_done = true;
 	}
-	if (curr_scanline_cycles >= 80 && curr_scanline_cycles <= (80 + 172)) {
-		// pixel xfer
-		if (!finished_current_line) {
+	if (curr_scanline_cycles >= 80 && curr_scanline_cycles <= (80 + 172) && currLY < 144 && !finished_current_line) {
+		// bg pixel xfer, if bit 0 of LCDC is set (bg enable)
+		if (((lcdc >> 0) & 1U) == 1) {
 			const uint8_t scx = mmu.read_byte(SCX);
 			const uint8_t scy = mmu.read_byte(SCY);
-			
 			// what line are we on?
 			uint8_t ybase = scy + currLY;
 			// find current bg map position
@@ -64,55 +88,63 @@ void PPU::update(int cycles)
 			// todo: use the register instead  of hardcoding 8000
 			// grab and discard the first byte becuase that's what hardware does?
 			uint16_t tileaddr = 0x8000 + (tile_num * 16);
-			uint8_t tile_low = mmu.read_byte(tileaddr); 
+			uint8_t tile_low = mmu.read_byte(tileaddr);
 			uint8_t tile_high = mmu.read_byte(tileaddr + 1);
 			// background (20 tiles wide)
 			for (int i = 0; i < 20; ++i) {
 				tile_num = mmu.read_byte(bg_map_address);
 				tileaddr = 0x8000 + (tile_num * 16);
+				// get the right vertical row of the tile
+				//tileaddr = tileaddr + ((ybase % 8) * 2);
 				tile_low = mmu.read_byte(tileaddr);
 				tile_high = mmu.read_byte(tileaddr + 1);
-				Logger::logger->info("{0:04x} - tile# {1}({2} - {3}) @ {4:04x} - scy: {5} - ybase(LY): {6}({7})", 
-					bg_map_address, tile_num, tile_low, tile_high, tileaddr, scy, ybase, currLY);
-				for (int bit = 0; bit < 8; ++bit) {
+				//Logger::logger->debug("{0:04x} - tile# {1}({2} - {3}) @ {4:04x} - scy: {5} - ybase(LY): {6}({7})",
+				//	bg_map_address, tile_num, tile_low, tile_high, tileaddr, scy, ybase, currLY);
+				for (int bit = 7; bit >= 0; --bit) {
 					uint8_t bit_low = (tile_low >> bit) & 1U;
 					uint8_t bit_high = (tile_high >> bit) & 1U;
-					uint8_t palette = bit_low | (bit_high << 1);
+					uint8_t palette = (bit_high << 1) | bit_low;
+
+					// combine these two bits to get our palette code
 					// figure our pixel color here
-					pixels[i * bit][ybase] = palette == 0 ? 0x0 : 0xFF;
+					Pixel pixel = get_color(palette);
+					pixels[i*bit][currLY].r = pixel.r;
+					pixels[i*bit][currLY].g = pixel.g;
+					pixels[i*bit][currLY].b = pixel.b;
 				}
-				// pixels[x][ybase]
-				// tile % ybase = the line of the sprite we're on
-				bg_map_address += 1;
+				//bg_map_address += 1;
 			}
-			/*if (((lcdc >> 4) & 1U) == 1)
-			{
-				tileaddr = (1) | (())
-			}*/
 
 			// if window enabled, render
 			// if sprites enabled, render
 			finished_current_line = true;
-			Logger::logger->info("PPU::finished_current_line={0}", finished_current_line);
+			//Logger::logger->debug("PPU::finished_current_line={0}", finished_current_line);
 		}
 	}
-	if (curr_scanline_cycles >= (80 + 172) && curr_scanline_cycles < 456) {
+	if (curr_scanline_cycles >= (80 + 172) && curr_scanline_cycles < 456 && currLY < 144) {
 		// H Blank
-		Logger::logger->info("H-Blank");
+		//Logger::logger->debug("H-Blank");
 		uint8_t stat = mmu.read_byte(STAT);
 		stat &= ~(1UL << 0);
 		stat &= ~(1UL << 1);
 		mmu.write_byte(STAT, stat);
 	}
 	if (curr_scanline_cycles >= 456) {
-		// Line is finished!
-		// render our line (background + sprites)
-		//gfx[160 * currLY];
 		// inc Ly (next line)
-		Logger::logger->info("Finished rendering line {0} in {1} cycles", currLY, curr_scanline_cycles);
 		mmu.write_byte(LY, currLY + 1);
 		curr_scanline_cycles = 0;
+		oam_done = false;
 		finished_current_line = false;
+	}
+
+	if (currLY == 144) {
+		// v blank (set bit 0 of 0xFF0F)
+		// set mode 1 in 0xFF41
+		uint8_t stat = mmu.read_byte(STAT);
+		mmu.write_byte(STAT, stat |= 1U << 0);
+		//gb.memory[0xFF0F] |= 1U << 0;
+		vblank = true;
+		//Logger::logger->debug("V-Blank");
 	}
 
 	if (currLY > 153) {
@@ -122,28 +154,80 @@ void PPU::update(int cycles)
 		stat &= ~(1U << 0);
 		mmu.write_byte(STAT, stat);
 		vblank = false;
-		Logger::logger->info("Finished V-Blank");
+		//Logger::logger->debug("Finished V-Blank");
 	}
-	
+
 	curr_scanline_cycles += cycles;
 }
 
-std::unique_ptr<std::vector<uint8_t>> PPU::refresh()
+std::unique_ptr<uint8_t[]> PPU::refresh()
 {
-	std::unique_ptr<std::vector<uint8_t>> pixels;
-	//bg at 0x8000
-	uint8_t scx = mmu.read_byte(SCX);
-	uint8_t scy = mmu.read_byte(SCY);
-	// draw the whole BG map, one line at a time
-	uint16_t start_addr = 0x8000;
-	for (int y = 0; y < 16; ++y) {
-		for (int x = 0; x < 20; ++x) {
+	auto pixels = std::make_unique<uint8_t[]>(160 * 144 * 3);
 
+	//bg at 0x8000
+	//uint8_t scx = mmu.read_byte(SCX);
+	//uint8_t scy = mmu.read_byte(SCY);
+	// draw the whole BG map, one line at a time
+	//uint16_t start_addr = 0x8000;
+	int count = 0;
+	for (int y = 0; y < 144; ++y) {
+		for (int x = 0; x < 160; ++x) {
+			pixels[count] = this->pixels[x][y].r;
+			pixels[count + 1] = this->pixels[x][y].g;
+			pixels[count + 2] = this->pixels[x][y].b;
+			count += 3;
 		}
 	}
-	// massage our data into something easy to use with sdl
-	for (int i = 0; i < 23040; ++i) {
 
-	}
 	return pixels;
+}
+
+std::unique_ptr<uint8_t[]> PPU::refresh_bg()
+{
+	//uint8_t pixels[256 * 256 * 3]{};
+	auto pixels = std::make_unique<uint8_t[]>(256 * 256 * 3);
+	// find current bg map position
+	//uint16_t bg_map_address = 0x9800;
+	// which tells us the current bg map tile number
+	// leftmost?
+
+	uint8_t tile_num;
+	uint16_t tileaddr;
+	uint8_t tile_low;
+	uint8_t tile_high;
+	int count = 0;
+	int line_count = 0;
+
+	// background (32 tiles wide)
+	for (int y = 0; y < 256; ++y) {
+		uint16_t bg_map_address = (0x9800 | ((y & 0xf8) << 2));
+		for (int x = 0; x < 32; ++x) {
+			tile_num = mmu.read_byte(bg_map_address);
+			tileaddr = 0x8000 + (tile_num * 16);
+			// get the right vertical row of the tile
+			tileaddr = tileaddr + ((y % 8) * 2);
+			tile_low = mmu.read_byte(tileaddr);
+			tile_high = mmu.read_byte(tileaddr + 1);
+			//Logger::logger->debug("{0:04x} - tile# {1}({2} - {3}) @ {4:04x} - scy: {5} - ybase(LY): {6}({7})",
+			//	bg_map_address, tile_num, tile_low, tile_high, tileaddr, scy, ybase, currLY);
+			for (int bit = 7; bit >= 0; --bit) {
+				uint8_t bit_low = (tile_low >> bit) & 1U;
+				uint8_t bit_high = (tile_high >> bit) & 1U;
+				uint8_t palette = (bit_high << 1) | bit_low;
+
+				// combine these two bits to get our palette code
+				// figure our pixel color here
+				Pixel pixel = get_color(palette);
+				pixels[count] = pixel.r;
+				pixels[count + 1] = pixel.g;
+				pixels[count + 2] = pixel.b;
+				count += 3;
+			}
+			// next tile on this row
+			bg_map_address += 1;
+		}
+	}
+
+	return pixels;
+	//return std::unique_ptr<uint8_t[]>(pixels);
 }

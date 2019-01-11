@@ -7,7 +7,7 @@
 	public:
 		MMU() {};
 		MMU(std::vector<uint8_t> cart);
-		MMU(uint8_t *cartridge, long size); // take cartridge pointer/length as arguments
+		//MMU(uint8_t *cartridge, long size); // take cartridge pointer/length as arguments
 
 		void load(std::vector<uint8_t> c);
 		uint8_t read_byte(uint16_t loc);
@@ -18,7 +18,7 @@
 		bool boot_rom_enabled;
 	private:
 		uint8_t memory[0xFFFF]{};
-		const std::vector<uint8_t> cartridge;
+		std::vector<uint8_t> cartridge;
 		// Boot ROM
 		const uint8_t boot_rom[256] = {
 			0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB,

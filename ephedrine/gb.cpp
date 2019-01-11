@@ -24,7 +24,8 @@ void Gameboy::load(std::vector<uint8_t> cartridge)
 void Gameboy::tick(int ticks)
 {
 	// step x ticks
-	cpu.step();
+	if (!cpu.halted)
+		cpu.step();
 	//handle interrupts
 	ppu.update(cpu.cycles);
 }

@@ -6,13 +6,9 @@
 #include "mmu.h"
 #include "ppu.h"
 
-MMU::MMU(uint8_t *cart, long size) : cartridge(cart, cart+size)
-{
-	load(cartridge);
-}
-
 MMU::MMU(std::vector<uint8_t> cart) : cartridge(cart)
 {
+	if (cart.empty()) cartridge = std::vector<uint8_t>(0x8000, 0xFF);
 	load(cartridge);
 }
 

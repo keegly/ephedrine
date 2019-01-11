@@ -53,9 +53,10 @@ public:
 	// returns previous opcode
 	CPU(MMU &mmu);
 	uint8_t step();
-	int cycles; 
+	int cycles;
 	void nop();
 	void print();
+	bool halted = false;
 	template<typename OStream>
 	friend OStream &operator<<(OStream &os, const CPU &c)
 	{
