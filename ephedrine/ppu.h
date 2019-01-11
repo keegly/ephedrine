@@ -1,5 +1,5 @@
-#ifndef GPU_H
-#define GPU_H
+#ifndef PPU_H
+#define PPU_H
 
 #include <cstdint>
 #include <memory>
@@ -30,24 +30,18 @@ public:
 	void print();
 private:
 	MMU& mmu;
-	Pixel pixels[160][144]; // 160x144 screen, 3 bytes per pixel 
+	Pixel pixels[144][160]; // 160x144 screen, 3 bytes per pixel
 	Pixel get_color(uint8_t tile);
-	const Pixel palette[4]{
+	Pixel palette[4]{
 		{(uint8_t)0xff, (uint8_t)0xff, (uint8_t)0xff},
 		{ (uint8_t)211,(uint8_t)211,(uint8_t)211 },
 		{(uint8_t)102,(uint8_t)102,(uint8_t)102},
 		{(uint8_t)0,(uint8_t)0,(uint8_t)0}
 	};
-	std::array<Pixel, 4> p{ {
-		{(uint8_t)0xff, (uint8_t)0xff, (uint8_t)0xff},
-		{ (uint8_t)211,(uint8_t)211,(uint8_t)211 },
-		{(uint8_t)102,(uint8_t)102,(uint8_t)102},
-		{(uint8_t)0,(uint8_t)0,(uint8_t)0}
-	} };
-	int curr_scanline_cycles; // 456 per each individual scanline
-	bool finished_current_line = false;
-	bool oam_done = false;
+	int curr_scanline_cycles; // 456 per each individual scan line
+	bool finished_current_line;
+	bool oam_done;
 	int visible_sprites[144]; // visible sprites for each line
 };
 
-#endif // !GPU_H
+#endif // !PPU_H

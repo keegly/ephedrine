@@ -46,14 +46,10 @@ int main(int argc, char** argv) {
 	in.seekg(0, std::ios::beg);
 	cart.resize(sz / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
-	//Logger::logger->info("cart size 0x{0:x} bytes", sz);
-	//cart.clear();
+
 	Logger::logger->info("cart size 0x{0:x} bytes", cart.size());
 	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
 	auto gb = std::make_unique<Gameboy>(cart);
-	// give us time to attach debugger
-//	std::string s;
-//	std::cin >> s;
 
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
@@ -65,7 +61,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 512, 512, SDL_WINDOW_SHOWN);
+	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 256 * 2, 256 * 2, SDL_WINDOW_SHOWN);
 	SDL_Renderer *bgren = SDL_CreateRenderer(bgmap, -1, SDL_RENDERER_ACCELERATED);
 
 	SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
@@ -73,11 +69,11 @@ int main(int argc, char** argv) {
 			std::cout << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
 			return 1;
 		}
-	//SDL_SetRenderDrawColor(ren, 256, 128, 0, SDL_ALPHA_OPAQUE);
-	SDL_SetRenderDrawColor(ren, 0, 0xff, 0, SDL_ALPHA_OPAQUE);
+
+	SDL_SetRenderDrawColor(ren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(ren);
 
-	SDL_SetRenderDrawColor(bgren, 0, 0xff, 0, SDL_ALPHA_OPAQUE);
+	SDL_SetRenderDrawColor(bgren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(bgren);
 
 	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC,160,144);
@@ -86,8 +82,8 @@ int main(int argc, char** argv) {
 	//std::thread render_thread(update_screen, std::ref(win));
 
 	using namespace std::chrono_literals;
-	constexpr auto tickrate = 16.66ms;
 	// A vertical refresh happens every 70224 cycles (17556 clocks) (140448 in GBC double speed mode): 59,7275 Hz
+	constexpr auto tickrate = 16.7427ms;
 	constexpr int max_cycles = 70224;
 	int curr_screen_cycles = 0;
 	SDL_Event event;
@@ -147,11 +143,12 @@ int main(int argc, char** argv) {
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
 
-		SDL_UpdateTexture(bgtex, nullptr, gb->ppu.refresh_bg().get(), 256 * 3);
+		auto bg = gb->ppu.refresh_bg();
+		SDL_UpdateTexture(bgtex, nullptr, bg.get(), 256 * 3);
 		SDL_RenderClear(bgren);
 		SDL_RenderCopy(bgren, bgtex, nullptr, nullptr);
 		SDL_RenderPresent(bgren);
-		SDL_Delay(1);
+		//SDL_Delay(1);
 		auto end = std::chrono::high_resolution_clock::now();
 		auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
