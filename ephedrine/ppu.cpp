@@ -1,5 +1,7 @@
 #include "ppu.h"
+#include "cpu.h"
 #include "logger.h"
+#include "bit_utility.h"
 
 
 PPU::PPU(MMU& m) : mmu(m)
@@ -7,6 +9,8 @@ PPU::PPU(MMU& m) : mmu(m)
 	curr_scanline_cycles = 0;
 	oam_done = false;
 	finished_current_line = false;
+	mmu.write_byte(LCDC, 0x91);
+	mmu.write_byte(STAT, 0x85);
 }
 
 void PPU::print()
@@ -15,6 +19,16 @@ void PPU::print()
 	uint8_t scx = mmu.read_byte(SCX);
 	uint8_t scy = mmu.read_byte(SCY);
 	Logger::logger->debug("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
+}
+
+uint8_t PPU::get_mode()
+{
+	return (mmu.read_byte(STAT) & 0x03);
+}
+
+void PPU::set_mode(uint8_t mode)
+{
+	mmu.set_ppu_mode(mode);
 }
 
 /**
@@ -68,7 +82,7 @@ void PPU::update(int cycles)
 {
 	uint8_t lcdc = mmu.read_byte(LCDC);
 	// LCD Disabled
-	if (((lcdc >> 7) & 1U) == 0)
+	if (!bit_check(lcdc, 7))
 		return;
 
 	uint8_t currLY = mmu.read_byte(LY);
@@ -76,11 +90,13 @@ void PPU::update(int cycles)
 	if (curr_scanline_cycles <= 80 && currLY < 144 && !oam_done) {
 		// OAM DMA XFER
 		// set mode
+		set_mode(PPU_MODE_OAM_SEARCH);
 		oam_done = true;
 	}
 	if (curr_scanline_cycles >= 80 && curr_scanline_cycles <= (80 + 172) && currLY < 144 && !finished_current_line) {
+		set_mode(PPU_MODE_LCD_XFER);
 		// bg pixel xfer, if bit 0 of LCDC is set (bg enable)
-		if (((lcdc >> 0) & 1U) == 1) {
+		if (bit_check(lcdc, 0)) {
 			uint8_t scx = mmu.read_byte(SCX);
 			uint8_t scy = mmu.read_byte(SCY);
 			// what line are we on?
@@ -107,7 +123,8 @@ void PPU::update(int cycles)
 				tile_high = mmu.read_byte(tileaddr + 1);
 
 				for (int bit = 7; bit >= 0; --bit) {
-					uint8_t bit_low = (tile_low >> bit) & 1U;
+					uint8_t bit_low = bit_check(tile_low, bit);
+					//uint8_t bit_low = (tile_low >> bit) & 1U;
 					uint8_t bit_high = (tile_high >> bit) & 1U;
 					uint8_t palette = (bit_high << 1) | bit_low;
 
@@ -128,11 +145,7 @@ void PPU::update(int cycles)
 	}
 	if (curr_scanline_cycles >= (80 + 172) && curr_scanline_cycles < 456 && currLY < 144) {
 		// H Blank
-		//Logger::logger->debug("H-Blank");
-		uint8_t stat = mmu.read_byte(STAT);
-		stat &= ~(1UL << 0);
-		stat &= ~(1UL << 1);
-		mmu.write_byte(STAT, stat);
+		this->set_mode(PPU_MODE_HBLANK);
 	}
 	if (curr_scanline_cycles >= 456) {
 		// inc Ly (next line)
@@ -143,23 +156,23 @@ void PPU::update(int cycles)
 	}
 
 	if (currLY == 144) {
-		// v blank (set bit 0 of 0xFF0F)
-		// set mode 1 in 0xFF41
-		uint8_t stat = mmu.read_byte(STAT);
-		mmu.write_byte(STAT, stat |= 1U << 0);
-		//gb.memory[0xFF0F] |= 1U << 0;
-		vblank = true;
-		//Logger::logger->debug("V-Blank");
+		if (!vblank) {
+			// v blank (set bit 0 of 0xFF0F)
+			uint8_t int_flag = mmu.read_byte(IF);
+			bit_set(int_flag, 0);
+			mmu.write_byte(IF, int_flag);
+			set_mode(PPU_MODE_VBLANK);
+			vblank = true;
+		}
 	}
 
 	if (currLY > 153) {
 		mmu.write_byte(LY, 0);
 		// reset STAT mode
-		uint8_t stat = mmu.read_byte(STAT);
+		/*uint8_t stat = mmu.read_byte(STAT);
 		stat &= ~(1U << 0);
-		mmu.write_byte(STAT, stat);
+		mmu.write_byte(STAT, stat);*/
 		vblank = false;
-		//Logger::logger->debug("Finished V-Blank");
 	}
 
 	curr_scanline_cycles += cycles;
@@ -169,16 +182,16 @@ void PPU::update(int cycles)
  * Convert our internal graphics representation to a simple
  * pixel array for use by SDL or whatever
  */
-std::unique_ptr<uint8_t[]> PPU::refresh()
+std::unique_ptr<uint8_t[]> PPU::render()
 {
 	auto pixels = std::make_unique<uint8_t[]>(160 * 144 * 3);
 
 	int count = 0;
-	for (int y = 0; y < 144; ++y) {
-		for (int x = 0; x < 160; ++x) {
-			pixels[count] = this->pixels[y][x].r;
-			pixels[count + 1] = this->pixels[y][x].g;
-			pixels[count + 2] = this->pixels[y][x].b;
+	for (auto & pixel : this->pixels) {
+		for (auto & x : pixel) {
+			pixels[count] = x.r;
+			pixels[count + 1] = x.g;
+			pixels[count + 2] = x.b;
 			count += 3;
 		}
 	}
@@ -189,7 +202,7 @@ std::unique_ptr<uint8_t[]> PPU::refresh()
 /**
  * Render the whole background tile map
  */
-std::unique_ptr<uint8_t[]> PPU::refresh_bg()
+std::unique_ptr<uint8_t[]> PPU::render_bg()
 {
 	auto pixels = std::make_unique<uint8_t[]>(256 * 256 * 3);
 
@@ -225,6 +238,43 @@ std::unique_ptr<uint8_t[]> PPU::refresh_bg()
 			}
 			// next tile on this row
 			bg_map_address += 1;
+		}
+	}
+
+	return pixels;
+}
+
+/**
+ * Render the tile data, to aid in debugging
+ */
+std::unique_ptr<uint8_t[]> PPU::render_tiles()
+{
+	auto pixels = std::make_unique<uint8_t[]>(128 * 256 * 3);
+
+	uint8_t tile_low;
+	uint8_t tile_high;
+	int count = 0;
+
+	for (int y = 0; y < 256; ++y) {
+		for (int x = 0; x < 16; ++x) {
+			uint16_t tileaddr = 0x8000 + (x * 16);
+			tileaddr = tileaddr + ((y % 8) * 2);
+			tile_low = mmu.read_byte(tileaddr);
+			tile_high = mmu.read_byte(tileaddr + 1);
+
+			for (int bit = 7; bit >= 0; --bit) {
+				uint8_t bit_low = (tile_low >> bit) & 1U;
+				uint8_t bit_high = (tile_high >> bit) & 1U;
+				uint8_t palette = (bit_high << 1) | bit_low;
+
+				// combine these two bits to get our palette code
+				// figure our pixel color here
+				Pixel pixel = get_color(palette);
+				pixels[count] = pixel.r;
+				pixels[count + 1] = pixel.g;
+				pixels[count + 2] = pixel.b;
+				count += 3;
+			}
 		}
 	}
 

@@ -7,11 +7,11 @@
 #include <vector>
 #include <fstream>
 #include <memory>
-
 // Testing
 #include "catch.hpp"
 #include "logger.h"
 #include "gb.h"
+#include "bit_utility.h"
 //#include "instructions.h"
 
 
@@ -38,15 +38,32 @@ int main(int argc, char** argv) {
 	Logger::logger->set_level(spdlog::level::debug);
 	bool quit = false;
 	std::vector<uint8_t> cart;
-	std::ifstream in("../06-ld r,r.gb", std::ios::binary);
-	//std::ifstream in("../cpu_instrs.gb", std::ios::binary);
+	//std::ifstream in("../06-ld r,r.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/cpu_instrs.gb", std::ios::binary);
+	// test roms
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/01-special.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/03-op sp,hl.gb", std::ios::binary);
+	std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/04-op r,imm.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/05-op rp.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/08-misc instrs.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/09-op r,r.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/10-bit ops.gb", std::ios::binary);
+
+	/* Passed */
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/06-ld r,r.gb", std::ios::binary);
+
+	// PPU testing
+	//std::ifstream in("../opus5.gb", std::ios::binary);
 	//std::ifstream in("../tetris.gb", std::ios::binary);
+	//std::ifstream in("../Dr. Mario.gb", std::ios::binary);
+	//std::ifstream in("../Pokemon - Blue Version.gb", std::ios::binary);
 	in.seekg(0, std::ios::end);
-	size_t sz = in.tellg();
+	auto sz = in.tellg();
 	in.seekg(0, std::ios::beg);
 	cart.resize(sz / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
-
 	Logger::logger->info("cart size 0x{0:x} bytes", cart.size());
 	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
 	auto gb = std::make_unique<Gameboy>(cart);
@@ -61,8 +78,11 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 256 * 2, 256 * 2, SDL_WINDOW_SHOWN);
+	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 256, 256, SDL_WINDOW_SHOWN);
 	SDL_Renderer *bgren = SDL_CreateRenderer(bgmap, -1, SDL_RENDERER_ACCELERATED);
+
+	SDL_Window *tilewin = SDL_CreateWindow("Tiles", 256, 256, 128, 256, SDL_WINDOW_HIDDEN);
+	SDL_Renderer *tileren = SDL_CreateRenderer(tilewin, -1, SDL_RENDERER_ACCELERATED);
 
 	SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 		if (ren == nullptr) {
@@ -72,12 +92,14 @@ int main(int argc, char** argv) {
 
 	SDL_SetRenderDrawColor(ren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(ren);
-
 	SDL_SetRenderDrawColor(bgren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(bgren);
+	SDL_SetRenderDrawColor(tileren, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_RenderClear(tileren);
 
 	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC,160,144);
 	SDL_Texture *bgtex = SDL_CreateTexture(bgren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 256, 256);
+	SDL_Texture *tiletex = SDL_CreateTexture(tileren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 128, 256);
 
 	//std::thread render_thread(update_screen, std::ref(win));
 
@@ -88,6 +110,7 @@ int main(int argc, char** argv) {
 	int curr_screen_cycles = 0;
 	SDL_Event event;
 	bool running = true;
+	bool bg_enabled = false;
 	while (!quit) {
 		auto start = std::chrono::high_resolution_clock::now();
 
@@ -137,17 +160,23 @@ int main(int argc, char** argv) {
 
 
 
-		//auto pixels = gb->ppu.refresh().get();
-		SDL_UpdateTexture(tex, nullptr, gb->ppu.refresh().get(), 160 * 3);
+		//auto pixels = gb->ppu.render().get();
+		SDL_UpdateTexture(tex, nullptr, gb->ppu.render().get(), 160 * 3);
 		SDL_RenderClear(ren);
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
 
-		auto bg = gb->ppu.refresh_bg();
+		auto bg = gb->ppu.render_bg();
 		SDL_UpdateTexture(bgtex, nullptr, bg.get(), 256 * 3);
 		SDL_RenderClear(bgren);
 		SDL_RenderCopy(bgren, bgtex, nullptr, nullptr);
 		SDL_RenderPresent(bgren);
+
+		/*auto tiles = gb->ppu.render_tiles();
+		SDL_UpdateTexture(bgtex, nullptr, tiles.get(), 128 * 3);
+		SDL_RenderClear(tileren);
+		SDL_RenderCopy(tileren, tiletex, nullptr, nullptr);
+		SDL_RenderPresent(tileren);*/
 		//SDL_Delay(1);
 		auto end = std::chrono::high_resolution_clock::now();
 		auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

@@ -56,5 +56,8 @@
     <ClInclude Include="catch.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="bit_utility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

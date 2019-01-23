@@ -2,16 +2,17 @@
 #define CPU_H
 
 #include "mmu.h"
+#include "bit_utility.h"
 #include "spdlog\fmt\ostr.h"
 
 // Interrupt Flag
 constexpr uint16_t IF = 0xFF0F;
 
 struct Flags {
-	bool z;		// zero
-	bool n;		// subtraction
-	bool h;		// half carry
-	bool c;		// carry
+	bool z;		// zero - bit 7
+	bool n;		// subtraction - bit 6
+	bool h;		// half carry - bit 5
+	bool c;		// carry - bit 4
 };
 
 struct Registers
@@ -53,6 +54,7 @@ public:
 	// returns previous opcode
 	CPU(MMU &mmu);
 	uint8_t step();
+	void handle_interrupts();
 	int cycles;
 	void nop();
 	void print();
@@ -346,6 +348,9 @@ private:
 		rr_l = 0x1D,
 		rr_at_hl = 0x1E,
 		rr_a = 0x1F,
+		swap_a = 0x37,
+		srl_b = 0x38,
+		srl_a = 0x3F,
 		bit_7_h = 0x7C,
 		set_7_a = 0xFF
 	};
@@ -355,7 +360,21 @@ private:
 	MMU &mmu;
 
 	// Flag register bit twiddling
-	inline void set_z();
+	constexpr void set_z() { bit_set(registers.f, 7); };
+	constexpr void reset_z() { bit_clear(registers.f, 7); };
+	constexpr void toggle_z() { bit_flip(registers.f, 7); };
+
+	constexpr void set_n() { bit_set(registers.f, 6); };
+	constexpr void reset_n() { bit_clear(registers.f, 6); };
+	constexpr void toggle_n() { bit_flip(registers.f, 6); };
+
+	constexpr void set_h() { bit_set(registers.f, 5); };
+	constexpr void reset_h() { bit_clear(registers.f, 5); };
+	constexpr void toggle_h() { bit_flip(registers.f, 5); };
+
+	constexpr void set_c() { bit_set(registers.f, 4); };
+	constexpr void reset_c() { bit_clear(registers.f, 4); };
+	constexpr void toggle_c() { bit_flip(registers.f, 4); };
 };
 
 #endif // !CPU_H

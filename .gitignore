@@ -247,3 +247,4 @@ ModelManifest.xml
 *.zip
 /ephedrine/spdlog
 /ephedrine/catch.hpp
+/gb-test-roms-master

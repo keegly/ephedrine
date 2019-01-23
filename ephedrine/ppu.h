@@ -12,7 +12,14 @@ constexpr uint16_t STAT = 0xFF41;
 constexpr uint16_t SCY  = 0xFF42;
 constexpr uint16_t SCX  = 0xFF43;
 constexpr uint16_t LY   = 0xFF44;
+constexpr uint16_t LYC	= 0xFF45;
 constexpr uint16_t BGP  = 0xFF47;
+
+// Modes
+constexpr uint8_t PPU_MODE_HBLANK	  = 0x00;
+constexpr uint8_t PPU_MODE_VBLANK	  = 0x01;
+constexpr uint8_t PPU_MODE_OAM_SEARCH = 0x02;
+constexpr uint8_t PPU_MODE_LCD_XFER	  = 0x03;
 
 struct Pixel {
 	uint8_t r;
@@ -25,9 +32,11 @@ public:
 	PPU(MMU& m);
 	bool vblank;
 	void update(int cycles);
-	std::unique_ptr<uint8_t[]> refresh();
-	std::unique_ptr<uint8_t[]> refresh_bg();
+	std::unique_ptr<uint8_t[]> render();
+	std::unique_ptr<uint8_t[]> render_bg();
+	std::unique_ptr<uint8_t[]> render_tiles();
 	void print();
+	inline uint8_t get_mode();
 private:
 	MMU& mmu;
 	Pixel pixels[144][160]; // 160x144 screen, 3 bytes per pixel
@@ -38,6 +47,7 @@ private:
 		{(uint8_t)102,(uint8_t)102,(uint8_t)102},
 		{(uint8_t)0,(uint8_t)0,(uint8_t)0}
 	};
+	void set_mode(uint8_t mode);
 	int curr_scanline_cycles; // 456 per each individual scan line
 	bool finished_current_line;
 	bool oam_done;
