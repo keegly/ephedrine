@@ -44,14 +44,14 @@ int main(int argc, char** argv) {
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/01-special.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/03-op sp,hl.gb", std::ios::binary);
-	std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/04-op r,imm.gb", std::ios::binary);
-	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/05-op rp.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/04-op r,imm.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/08-misc instrs.gb", std::ios::binary);
-	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/09-op r,r.gb", std::ios::binary);
+	std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/09-op r,r.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/10-bit ops.gb", std::ios::binary);
 
 	/* Passed */
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/05-op rp.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/06-ld r,r.gb", std::ios::binary);
 
 	// PPU testing
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 256, 256, SDL_WINDOW_SHOWN);
+	SDL_Window *bgmap = SDL_CreateWindow("BG Map",512, 512, 256, 256, SDL_WINDOW_HIDDEN);
 	SDL_Renderer *bgren = SDL_CreateRenderer(bgmap, -1, SDL_RENDERER_ACCELERATED);
 
 	SDL_Window *tilewin = SDL_CreateWindow("Tiles", 256, 256, 128, 256, SDL_WINDOW_HIDDEN);
@@ -166,11 +166,11 @@ int main(int argc, char** argv) {
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
 
-		auto bg = gb->ppu.render_bg();
+		/*auto bg = gb->ppu.render_bg();
 		SDL_UpdateTexture(bgtex, nullptr, bg.get(), 256 * 3);
 		SDL_RenderClear(bgren);
 		SDL_RenderCopy(bgren, bgtex, nullptr, nullptr);
-		SDL_RenderPresent(bgren);
+		SDL_RenderPresent(bgren);*/
 
 		/*auto tiles = gb->ppu.render_tiles();
 		SDL_UpdateTexture(bgtex, nullptr, tiles.get(), 128 * 3);

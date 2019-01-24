@@ -689,7 +689,8 @@ uint8_t CPU::step()
 	case Instruction::ld_a16_sp:
 	{
 		uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-		mmu.write_byte(address, pc);
+		mmu.write_byte(address, static_cast<uint8_t>(sp));  // LSB
+		mmu.write_byte(address + 1, sp >> 8);				// MSB
 		pc += 3;
 		cycles = 20;
 		break;
@@ -719,22 +720,12 @@ uint8_t CPU::step()
 	case Instruction::push_af:
 		// since we don't use the bits of the F register
 		// and we need to save the flags state, set them now
-		if (flags.z)
-			set_z();
-		else
-			reset_z();
-		if (flags.n)
-			set_n();
-		else
-			reset_n();
-		if (flags.h)
-			set_h();
-		else
-			reset_h();
-		if (flags.c)
-			set_c();
-		else
-			reset_c();
+		flags.z ? set_z() : reset_z();
+		flags.n ? set_n() : reset_n();
+		flags.h ? set_h() : reset_h();
+		flags.c ? set_c() : reset_c();
+		// reset unused bits 0 - 3
+		bitmask_clear(registers.f, 0x0F);
 
 		mmu.write_byte(sp, registers.a);
 		mmu.write_byte(sp - 1, registers.f);
@@ -767,24 +758,11 @@ uint8_t CPU::step()
 		registers.a = mmu.read_byte(sp + 2);
 		registers.f = mmu.read_byte(sp + 1);
 		// reset our flags
-		if (bit_check(registers.f, 7)) {
-			flags.z = true;
-		}
-		else {
-			flags.z = false;
-		}
-		if (bit_check(registers.f, 6))
-			flags.n = true;
-		else
-			flags.n = false;
-		if (bit_check(registers.f, 5))
-			flags.h = true;
-		else
-			flags.h = false;
-		if (bit_check(registers.f, 4))
-			flags.c = true;
-		else
-			flags.c = false;
+		bit_check(registers.f, 7) ? flags.z = true : flags.z = false;
+		bit_check(registers.f, 6) ? flags.n = true : flags.n = false;
+		bit_check(registers.f, 5) ? flags.h = true : flags.h = false;
+		bit_check(registers.f, 4) ? flags.c = true : flags.c = false;
+
 		sp += 2;
 		++pc;
 		cycles = 12;
@@ -812,9 +790,13 @@ uint8_t CPU::step()
 		break;
 	case Instruction::ld_hl_sp_R8:
 	{
+		// Add the signed value R8 to SP and store the result in HL.
 		int8_t offset = mmu.read_byte(pc + 1);
 		registers.hl = sp + offset;
-		// TODO: Z and H flags
+		// carry and half carry are computed on the lower 8 bits
+		// #TODO: verify carry!
+		(sp ^ offset ^ registers.hl) & 0x10 ? flags.h = true : flags.h = false;
+		(sp ^ offset ^ registers.hl) & 0x100 ? flags.c = true : flags.c = false;
 		flags.z = false;
 		flags.n = false;
 		pc += 2;
@@ -826,29 +808,103 @@ uint8_t CPU::step()
 		cycles = 8;
 		++pc;
 		break;
-		// 8 bit ALU
+	// 8 bit ALU
+	case Instruction::add_a_a:
+	{
+		uint16_t res = registers.a + registers.a;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.a ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.a += static_cast<uint8_t>(res);
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::add_a_b:
+	{
+		uint16_t res = registers.a + registers.b;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.b ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.a = static_cast<uint8_t>(res);
+		++pc;
+		cycles = 4;
+		break;
+	}
 	case Instruction::add_a_c:
 	{
 		uint16_t res = registers.a + registers.c;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (res > UINT8_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-		// todo: fix half carry flag
-		if ((registers.a ^ registers.c ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.c ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.a = static_cast<uint8_t>(res);
-		pc += 2;
-		cycles = 8;
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::add_a_d:
+	{
+		uint16_t res = registers.a + registers.d;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.d ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.a = static_cast<uint8_t>(res);
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::add_a_e:
+	{
+		uint16_t res = registers.a + registers.e;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.e ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.a = static_cast<uint8_t>(res);
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::add_a_h:
+	{
+		uint16_t res = registers.a + registers.h;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.h ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.a = static_cast<uint8_t>(res);
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::add_a_l:
+	{
+		uint16_t res = registers.a + registers.l;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ registers.l ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.a = static_cast<uint8_t>(res);
+		++pc;
+		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_hl:
@@ -856,19 +912,9 @@ uint8_t CPU::step()
 		uint8_t value = mmu.read_byte(registers.hl);
 		uint16_t res = registers.a + value;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (res > UINT8_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-		// todo: fix half carry flag
-		if ((registers.a ^ value ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.a = static_cast<uint8_t>(res);
@@ -881,19 +927,12 @@ uint8_t CPU::step()
 		uint8_t value = mmu.read_byte(pc + 1);
 		uint16_t res = registers.a + value;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (res > UINT8_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-		// todo: fix half carry flag
-		if ((registers.a ^ value ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		// test only the lower 8 bits, otherwise we'll get a wrong result if
+		// there's a carry. This applies to every instruction we used a 16bit
+		// container for the 8 bit result
+		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.a = static_cast<uint8_t>(res);
@@ -901,29 +940,35 @@ uint8_t CPU::step()
 		cycles = 8;
 		break;
 	}
+	case Instruction::add_sp_r8:
+	{
+		int8_t value = mmu.read_byte(pc + 1);
+		uint16_t res = sp + value;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(sp ^ value ^ res) & 0x100 ? flags.c = true : flags.c = false; // bit 7
+		(sp ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false; // bit 3
+		flags.n = false;
+
+		pc += 2;
+		cycles = 8;
+		break;
+	}
+
 	case Instruction::adc_a_h:
 	{
 		uint8_t carry;
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint16_t res = registers.a + registers.h + carry;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (res > UINT8_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-		// todo: fix half carry flag
-		if ((registers.a ^ registers.h ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		// #TODO: Verify
+		(registers.a ^ (registers.h + carry) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.a = static_cast<uint8_t>(res);
-		pc += 2;
+		++pc;
 		cycles = 8;
 		break;
 	}
@@ -934,19 +979,10 @@ uint8_t CPU::step()
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint16_t res = registers.a + value + carry;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (res > UINT8_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-		// todo: fix half carry flag
-		if ((registers.a ^ value ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
+		res > UINT8_MAX ? flags.c = true : flags.c = false;
+		(registers.a ^ value ^ carry ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		// #TODO: fix half carry flag
 		flags.n = false;
 
 		registers.a = static_cast<uint8_t>(res);
@@ -961,9 +997,9 @@ uint8_t CPU::step()
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint16_t res = registers.a - value - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
+		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
 		value > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ (-value) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		(registers.a ^ (-value) ^ -carry ^ res) & 0x10 ? flags.h = true : flags.h = false;
 
 		flags.n = true;
 
@@ -972,38 +1008,10 @@ uint8_t CPU::step()
 		cycles = 8;
 		break;
 	}
-	case Instruction::add_a_a:
-	{
-
-		uint16_t res = registers.a + registers.a;
-
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (res > UINT8_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-		// todo: fix half carry flag
-		if ((registers.a ^ registers.a ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
-		flags.n = false;
-
-		registers.a += registers.a;
-		pc += 2;
-		cycles = 8;
-		break;
-	}
 	case Instruction::and_d8:
 		registers.a &= mmu.read_byte(pc + 1);
 
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.n = false;
 		flags.c = false;
 		flags.h = true;
@@ -1013,10 +1021,7 @@ uint8_t CPU::step()
 	case Instruction::and_a:
 		registers.a &= registers.a;
 
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.n = false;
 		flags.c = false;
 		flags.h = true;
@@ -1026,10 +1031,7 @@ uint8_t CPU::step()
 	case Instruction::and_b:
 		registers.a &= registers.b;
 
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.n = false;
 		flags.c = false;
 		flags.h = true;
@@ -1039,10 +1041,7 @@ uint8_t CPU::step()
 	case Instruction::and_c:
 		registers.a &= registers.c;
 
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.n = false;
 		flags.c = false;
 		flags.h = true;
@@ -1053,19 +1052,10 @@ uint8_t CPU::step()
 	{
 		uint8_t val = mmu.read_byte(pc + 1);
 		uint8_t res = registers.a - val;
-		// TODO: set flags
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (val > registers.a)
-			flags.c = true;
-		else
-			flags.c = false;
-		if ((registers.a ^ (-val) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		val > registers.a ? flags.c = true : flags.c = false;
+		(registers.a ^ (-val) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.a = res;
@@ -1076,18 +1066,10 @@ uint8_t CPU::step()
 	case Instruction::sub_b:
 	{
 		uint8_t res = registers.a - registers.b;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (registers.b > registers.a)
-			flags.c = true;
-		else
-			flags.c = false;
-		if ((registers.a ^ (-registers.b) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		registers.b > registers.a ? flags.c = true : flags.c = false;
+		(registers.a ^ (-registers.b) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.a = res;
@@ -1098,18 +1080,10 @@ uint8_t CPU::step()
 	case Instruction::sub_c:
 	{
 		uint8_t res = registers.a - registers.c;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if (registers.c > registers.a)
-			flags.c = true;
-		else
-			flags.c = false;
-		if ((registers.a ^ (-registers.c) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		registers.c > registers.a ? flags.c = true : flags.c = false;
+		(registers.a ^ (-registers.c) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.a = res;
@@ -1120,10 +1094,7 @@ uint8_t CPU::step()
 	case Instruction::xor_a:
 	{
 		uint8_t res = registers.a ^ registers.a;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		res == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1135,10 +1106,7 @@ uint8_t CPU::step()
 	case Instruction::xor_c:
 	{
 		uint8_t res = registers.a ^ registers.c;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		res == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1150,10 +1118,7 @@ uint8_t CPU::step()
 	case Instruction::xor_d:
 	{
 		uint8_t res = registers.a ^ registers.d;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		res == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1165,10 +1130,7 @@ uint8_t CPU::step()
 	case Instruction::xor_e:
 	{
 		uint8_t res = registers.a ^ registers.e;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		res == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1180,10 +1142,7 @@ uint8_t CPU::step()
 	case Instruction::xor_h:
 	{
 		uint8_t res = registers.a ^ registers.h;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		res == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1195,10 +1154,7 @@ uint8_t CPU::step()
 	case Instruction::xor_l:
 	{
 		uint8_t res = registers.a ^ registers.l;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		res == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1209,10 +1165,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::xor_hl:
 		registers.a ^= mmu.read_byte(registers.hl);
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1222,10 +1175,7 @@ uint8_t CPU::step()
 		break;
 	case Instruction::xor_d8:
 		registers.a ^= mmu.read_byte(pc + 1);
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1235,10 +1185,7 @@ uint8_t CPU::step()
 		break;
 	case Instruction::or_a:
 		registers.a |= registers.a;
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1247,10 +1194,7 @@ uint8_t CPU::step()
 		break;
 	case Instruction::or_b:
 		registers.a |= registers.b;
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1259,10 +1203,43 @@ uint8_t CPU::step()
 		break;
 	case Instruction::or_c:
 		registers.a |= registers.c;
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
+		flags.c = false;
+		flags.h = false;
+		flags.n = false;
+		++pc;
+		cycles = 4;
+		break;
+	case Instruction::or_d:
+		registers.a |= registers.d;
+		registers.a == 0 ? flags.z = true : flags.z = false;
+		flags.c = false;
+		flags.h = false;
+		flags.n = false;
+		++pc;
+		cycles = 4;
+		break;
+	case Instruction::or_e:
+		registers.a |= registers.e;
+		registers.a == 0 ? flags.z = true : flags.z = false;
+		flags.c = false;
+		flags.h = false;
+		flags.n = false;
+		++pc;
+		cycles = 4;
+		break;
+	case Instruction::or_h:
+		registers.a |= registers.h;
+		registers.a == 0 ? flags.z = true : flags.z = false;
+		flags.c = false;
+		flags.h = false;
+		flags.n = false;
+		++pc;
+		cycles = 4;
+		break;
+	case Instruction::or_l:
+		registers.a |= registers.l;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1271,10 +1248,7 @@ uint8_t CPU::step()
 		break;
 	case Instruction::or_hl:
 		registers.a |= mmu.read_byte(registers.hl);
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1283,10 +1257,7 @@ uint8_t CPU::step()
 		break;
 	case Instruction::or_d8:
 		registers.a |= mmu.read_byte(pc + 1);
-		if (registers.a == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
 		flags.n = false;
@@ -1297,14 +1268,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.a + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.a ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.a = res;
@@ -1316,14 +1281,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.b + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.b ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.b ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.b = res;
@@ -1335,14 +1294,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.c + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.c ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.c ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.c = res;
@@ -1354,14 +1307,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.d + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.d ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.d ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.d = res;
@@ -1373,14 +1320,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.e + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.e ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.e ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.e = res;
@@ -1392,14 +1333,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.h + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.h ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.h ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.h = res;
@@ -1411,14 +1346,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.l + 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.l ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.l ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.l = res;
@@ -1431,15 +1360,11 @@ uint8_t CPU::step()
 		uint8_t val = mmu.read_byte(registers.hl);
 		uint8_t res = val + 1;
 		mmu.write_byte(registers.hl, res);
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((val ^ 1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(val ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = false;
+
 		++pc;
 		cycles = 12;
 		break;
@@ -1448,14 +1373,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.a - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.a ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.a = res;
@@ -1467,14 +1386,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.b - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.b ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.b ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.b = res;
@@ -1486,14 +1399,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.c - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.c ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.c ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.c = res;
@@ -1505,14 +1412,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.d - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.d ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.d ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.d = res;
@@ -1524,14 +1425,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.e - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.e ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.e ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.e = res;
@@ -1543,14 +1438,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.h - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.h ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.h ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.h = res;
@@ -1562,14 +1451,8 @@ uint8_t CPU::step()
 	{
 		uint8_t res = registers.l - 1;
 
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((registers.l ^ (-1) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.l ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
 
 		registers.l = res;
@@ -1582,55 +1465,117 @@ uint8_t CPU::step()
 		uint8_t val = mmu.read_byte(registers.hl);
 		uint8_t res = val - 1;
 		mmu.write_byte(registers.hl, res);
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
-		if ((val ^ -1 ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
-		flags.n = false;
+		res == 0 ? flags.z = true : flags.z = false;
+		(val ^ (-1) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		flags.n = true;
+
 		++pc;
 		cycles = 12;
+		break;
+	}
+	case Instruction::cp_a:
+	{
+		uint8_t res = registers.a - registers.a;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		flags.h = false;
+		flags.c = false;
+		//(registers.a ^ (-registers.a) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		//registers.a > registers.a ? flags.c = true : flags.c = false;
+		flags.n = true;
+
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::cp_b:
+	{
+		uint8_t res = registers.a - registers.b;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-registers.b) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		registers.b > registers.a ? flags.c = true : flags.c = false;
+		flags.n = true;
+
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::cp_c:
+	{
+		uint8_t res = registers.a - registers.c;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-registers.c) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		registers.c > registers.a ? flags.c = true : flags.c = false;
+		flags.n = true;
+
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::cp_d:
+	{
+		uint8_t res = registers.a - registers.d;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-registers.d) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		registers.d > registers.a ? flags.c = true : flags.c = false;
+		flags.n = true;
+
+		++pc;
+		cycles = 4;
 		break;
 	}
 	case Instruction::cp_e:
 	{
 		uint8_t res = registers.a - registers.e;
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-registers.e) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		registers.e > registers.a ? flags.c = true : flags.c = false;
 		flags.n = true;
-		if ((registers.a ^ (-registers.e) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
-		if (registers.e > registers.a)
-			flags.c = true;
-		else
-			flags.c = false;
+
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::cp_h:
+	{
+		uint8_t res = registers.a - registers.h;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-registers.h) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		registers.h > registers.a ? flags.c = true : flags.c = false;
+		flags.n = true;
+
+		++pc;
+		cycles = 4;
+		break;
+	}
+	case Instruction::cp_l:
+	{
+		uint8_t res = registers.a - registers.l;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-registers.l) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		registers.l > registers.a ? flags.c = true : flags.c = false;
+		flags.n = true;
+
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::cp_d8:
 	{
-		uint8_t res = registers.a - mmu.read_byte(pc + 1);
-		if (res == 0)
-			flags.z = true;
-		else
-			flags.z = false;
+		uint8_t val = mmu.read_byte(pc + 1);
+		uint8_t res = registers.a - val;
+
+		res == 0 ? flags.z = true : flags.z = false;
+		(registers.a ^ (-val) ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		val > registers.a ? flags.c = true : flags.c = false;
 		flags.n = true;
-		if ((registers.a ^ (-mmu.read_byte(pc + 1)) ^ res) & 0x10)
-			flags.h = true;
-		else
-			flags.h = false;
-		if (mmu.read_byte(pc + 1) > registers.a)
-			flags.c = true;
-		else
-			flags.c = false;
+
 		pc += 2;
 		cycles = 8;
 		break;
@@ -1671,28 +1616,52 @@ uint8_t CPU::step()
 		++pc;
 		cycles = 8;
 		break;
+	case Instruction::inc_sp:
+		++sp;
+		++pc;
+		cycles = 8;
+		break;
 	case Instruction::dec_bc:
 		--registers.bc;
 		++pc;
 		cycles = 8;
 		break;
+	case Instruction::dec_de:
+		--registers.de;
+		++pc;
+		cycles = 8;
+		break;
+	case Instruction::dec_hl:
+		--registers.hl;
+		++pc;
+		cycles = 8;
+		break;
+	case Instruction::dec_sp:
+		--sp;
+		++pc;
+		cycles = 8;
+	case Instruction::add_hl_bc:
+	{
+		uint32_t res = registers.hl + registers.bc;
+
+		res > UINT16_MAX ? flags.c = true : flags.c = false;
+		(registers.hl ^ registers.bc ^ res) & 0x1000 ? flags.h = true : flags.h = false;
+		flags.n = false;
+
+		registers.hl = static_cast<uint16_t>(res);
+		++pc;
+		cycles = 8;
+		break;
+	}
 	case Instruction::add_hl_de:
 	{
 		uint32_t res = registers.hl + registers.de;
 
-		if (res > UINT16_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
-
-		// TODO: Verify
-		if ((registers.hl ^ registers.de ^ res) & 0x1000)
-			flags.h = true;
-		else
-			flags.h = false;
+		res > UINT16_MAX ? flags.c = true : flags.c = false;
+		(registers.hl ^ registers.de ^ res) & 0x1000 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
-		registers.hl += registers.de;
+		registers.hl = static_cast<uint16_t>(res);
 		++pc;
 		cycles = 8;
 		break;
@@ -1701,16 +1670,21 @@ uint8_t CPU::step()
 	{
 		uint32_t res = registers.hl + registers.hl;
 
-		if (res > UINT16_MAX)
-			flags.c = true;
-		else
-			flags.c = false;
+		res > UINT16_MAX ? flags.c = true : flags.c = false;
+		(registers.hl ^ registers.hl ^ res) & 0x1000 ? flags.h = true : flags.h = false;
+		flags.n = false;
 
-		// TODO: Verify
-		if ((registers.hl ^ registers.hl ^ res) & 0x1000)
-			flags.h = true;
-		else
-			flags.h = false;
+		registers.hl = static_cast<uint16_t>(res);
+		++pc;
+		cycles = 8;
+		break;
+	}
+	case Instruction::add_hl_sp:
+	{
+		uint32_t res = registers.hl + sp;
+
+		res > UINT16_MAX ? flags.c = true : flags.c = false;
+		(registers.hl ^ registers.hl ^ res) & 0x1000 ? flags.h = true : flags.h = false;
 		flags.n = false;
 
 		registers.hl = static_cast<uint16_t>(res);
@@ -1848,7 +1822,8 @@ uint8_t CPU::step()
 		registers.a ^= (-bit ^ registers.a) & (1U << 0);
 		//flags.c = bit;
 		bit == 0 ? flags.c = false : flags.c = true;
-		flags.z = false;
+		// unsure whether Z flag should be modified here
+		// flags.z = false;
 		flags.n = false;
 		flags.h = false;
 		++pc;
@@ -1953,11 +1928,37 @@ uint8_t CPU::step()
 		break;
 	}
 	// Misc
+	case Instruction::daa:
+	{
+		//  Decimal adjust register A to get a correct BCD representation after an arithmetic instruction.
+		// add 6 or sub 6 if flag.n
+		if ((registers.a & 0x0F) > 0x09)
+			flags.n ? registers.a -= 0x06 : registers.a += 0x06;
+		// #TODO: carry stuff
+		throw;
+		++pc;
+		cycles = 4;
+		break;
+	}
 	case Instruction::cpl:
 		registers.a = ~registers.a;
 		flags.n = true;
 		flags.h = true;
 		++pc;
+		break;
+	case Instruction::scf:
+		flags.c = true;
+		flags.n = false;
+		flags.h = false;
+		++pc;
+		cycles = 4;
+		break;
+	case Instruction::ccf:
+		flags.c = !flags.c;
+		flags.n = false;
+		flags.h = false;
+		++pc;
+		cycles = 4;
 		break;
 	case Instruction::di:
 		// TODO: disable interrupts after the next instruction
