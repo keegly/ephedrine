@@ -7,6 +7,13 @@
 #include "mmu.h"
 #include "ppu.h"
 
+MMU::MMU()
+{
+	boot_rom_enabled = true;
+	cartridge.clear();
+	rom_banks = 0;
+	ram_banks = 0;
+}
 MMU::MMU(std::vector<uint8_t> cart) : cartridge(cart)
 {
 	//boot_rom_enabled = false;

@@ -6,21 +6,23 @@
 
 class MMU {
 	public:
-		MMU() {};
+		MMU();
 		MMU(std::vector<uint8_t> cart);
 		//MMU(uint8_t *cartridge, long size); // take cartridge pointer/length as arguments
 
 		void load(std::vector<uint8_t> c);
 		uint8_t read_byte(uint16_t loc);
 		void write_byte(uint16_t loc, uint8_t val);
+		uint16_t read_word(uint16_t loc);
+		void write_word(uint16_t loc, uint16_t val);
 		void set_ppu_mode(uint8_t mode);
 		// total amount of 8kB memory banks we have
 		int rom_banks;
 		int ram_banks;
 		bool boot_rom_enabled;
 	private:
-		std::array<uint8_t, 0xFFFF> memory;
-		std::vector<uint8_t> cartridge;
+		std::array<uint8_t, 0xFFFF> memory{};
+		std::vector<uint8_t> cartridge{};
 		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks{};
 		// Boot ROM
 		const uint8_t boot_rom[256] = {
