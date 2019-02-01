@@ -45,9 +45,10 @@ void CPU::handle_interrupts()
 	// no interrupts to handle, so bail
 	if (address == 0x0000) return;
 	// put current pc on stack and head to the proper service routine
+	--sp;
 	mmu.write_byte(sp, pc >> 8);
-	mmu.write_byte(sp - 1, static_cast<uint8_t>(pc));
-	sp -= 2;
+	--sp;
+	mmu.write_byte(sp, static_cast<uint8_t>(pc));
 
 	// set pc to the correct interrupt handler address
 	pc = address;
@@ -2079,64 +2080,70 @@ uint8_t CPU::step()
 		// reset unused bits 0 - 3
 		bitmask_clear(registers.f, 0x0F);
 
+		sp -= 1;
 		mmu.write_byte(sp, registers.a);
-		mmu.write_byte(sp - 1, registers.f);
-		sp -= 2;
+		sp -= 1;
+		mmu.write_byte(sp, registers.f);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_bc:
+		sp -= 1;
 		mmu.write_byte(sp, registers.b);
-		mmu.write_byte(sp - 1, registers.c);
-		sp -= 2;
+		sp -= 1;
+		mmu.write_byte(sp, registers.c);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_de:
+		sp -= 1;
 		mmu.write_byte(sp, registers.d);
-		mmu.write_byte(sp - 1, registers.e);
-		sp -= 2;
+		sp -= 1;
+		mmu.write_byte(sp, registers.e);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_hl:
+		sp -= 1;
 		mmu.write_byte(sp, registers.h);
-		mmu.write_byte(sp - 1, registers.l);
-		sp -= 2;
+		sp -= 1;
+		mmu.write_byte(sp, registers.l);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::pop_af:
-		registers.a = mmu.read_byte(sp + 2);
-		registers.f = mmu.read_byte(sp + 1);
+		registers.f = mmu.read_byte(sp);
+		++sp;
+		registers.a = mmu.read_byte(sp);
+		++sp;
 		// reset our flags
 		bit_check(registers.f, 7) ? flags.z = true : flags.z = false;
 		bit_check(registers.f, 6) ? flags.n = true : flags.n = false;
 		bit_check(registers.f, 5) ? flags.h = true : flags.h = false;
 		bit_check(registers.f, 4) ? flags.c = true : flags.c = false;
 
-		sp += 2;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_bc:
-		registers.b = mmu.read_byte(sp + 2);
-		registers.c = mmu.read_byte(sp + 1);
-		sp += 2;
+		registers.c = mmu.read_byte(sp);
+		++sp;
+		registers.b = mmu.read_byte(sp);
+		++sp;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_de:
-		registers.d = mmu.read_byte(sp + 2);
-		registers.e = mmu.read_byte(sp + 1);
-		sp += 2;
+		registers.e = mmu.read_byte(sp);
+		++sp;
+		registers.d = mmu.read_byte(sp);
+		++sp;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_hl:
-		registers.h = mmu.read_byte(sp + 2);
-		registers.l = mmu.read_byte(sp + 1);
-		sp += 2;
+		registers.l = mmu.read_byte(sp++);
+		registers.h = mmu.read_byte(sp++);
 		++pc;
 		cycles = 12;
 		break;
@@ -3595,18 +3602,18 @@ uint8_t CPU::step()
 	}
 	// Calls
 	case Instruction::call_a16:
+		--sp;
 		mmu.write_byte(sp, (pc + 3) >> 8);
-		mmu.write_byte(sp - 1, pc + 3);
-		sp -= 2;
+		--sp;
+		mmu.write_byte(sp, pc + 3);
 		pc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
 		cycles = 12;
 		break;
 	case Instruction::call_nz_a16:
 		if (!flags.z) {
 			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(sp, (pc + 3) >> 8);
-			mmu.write_byte(sp - 1, pc + 3);
-			sp -= 2;
+			mmu.write_byte(--sp, (pc + 3) >> 8);
+			mmu.write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3618,9 +3625,8 @@ uint8_t CPU::step()
 	case Instruction::call_z_a16:
 		if (flags.z) {
 			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(sp, (pc + 3) >> 8);
-			mmu.write_byte(sp - 1, pc + 3);
-			sp -= 2;
+			mmu.write_byte(--sp, (pc + 3) >> 8);
+			mmu.write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3632,9 +3638,8 @@ uint8_t CPU::step()
 	case Instruction::call_nc_a16:
 		if (!flags.c) {
 			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(sp, (pc + 3) >> 8);
-			mmu.write_byte(sp - 1, pc + 3);
-			sp -= 2;
+			mmu.write_byte(--sp, (pc + 3) >> 8);
+			mmu.write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3646,9 +3651,8 @@ uint8_t CPU::step()
 	case Instruction::call_c_a16:
 		if (flags.c) {
 			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(sp, (pc + 3) >> 8);
-			mmu.write_byte(sp - 1, pc + 3);
-			sp -= 2;
+			mmu.write_byte(--sp, (pc + 3) >> 8);
+			mmu.write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3687,9 +3691,8 @@ uint8_t CPU::step()
 		cycles = 16;
 		break;
 	case Instruction::rst_20h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0020;
 		cycles = 16;
 		break;
@@ -3717,14 +3720,14 @@ uint8_t CPU::step()
 	// Returns
 	case Instruction::ret:
 	{
-		pc = (mmu.read_byte(sp + 2) << 8) + mmu.read_byte(sp + 1);
+		pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
 		sp += 2;
 		cycles = 8;
 		break;
 	}
 	case Instruction::reti:
 	{
-		pc = (mmu.read_byte(sp + 2) << 8) + mmu.read_byte(sp + 1);
+		pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
 		ime = true;
 		sp += 2;
 		cycles = 16;
@@ -3733,7 +3736,7 @@ uint8_t CPU::step()
 	case Instruction::ret_z:
 	{
 		if (flags.z) {
-			pc = (mmu.read_byte(sp + 2) << 8) + mmu.read_byte(sp + 1);
+			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		}
@@ -3746,7 +3749,7 @@ uint8_t CPU::step()
 	case Instruction::ret_nz:
 	{
 		if (!flags.z) {
-			pc = (mmu.read_byte(sp + 2) << 8) + mmu.read_byte(sp + 1);
+			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		} else {
@@ -3758,7 +3761,7 @@ uint8_t CPU::step()
 	case Instruction::ret_c:
 	{
 		if (flags.c) {
-			pc = (mmu.read_byte(sp + 2) << 8) + mmu.read_byte(sp + 1);
+			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		}
@@ -3771,7 +3774,7 @@ uint8_t CPU::step()
 	case Instruction::ret_nc:
 	{
 		if (!flags.c) {
-			pc = (mmu.read_byte(sp + 2) << 8) + mmu.read_byte(sp + 1);
+			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		}
