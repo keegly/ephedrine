@@ -3602,10 +3602,8 @@ uint8_t CPU::step()
 	}
 	// Calls
 	case Instruction::call_a16:
-		--sp;
-		mmu.write_byte(sp, (pc + 3) >> 8);
-		--sp;
-		mmu.write_byte(sp, pc + 3);
+		mmu.write_byte(--sp, (pc + 3) >> 8);
+		mmu.write_byte(--sp, pc + 3);
 		pc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
 		cycles = 12;
 		break;
@@ -3663,30 +3661,26 @@ uint8_t CPU::step()
 		break;
 	// Restarts
 	case Instruction::rst_00h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0000;
 		cycles = 16;
 		break;
 	case Instruction::rst_08h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0008;
 		cycles = 16;
 		break;
 	case Instruction::rst_10h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0010;
 		cycles = 16;
 		break;
 	case Instruction::rst_18h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0018;
 		cycles = 16;
 		break;
@@ -3697,23 +3691,20 @@ uint8_t CPU::step()
 		cycles = 16;
 		break;
 	case Instruction::rst_28h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0028;
 		cycles = 16;
 		break;
 	case Instruction::rst_30h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0030;
 		cycles = 16;
 		break;
 	case Instruction::rst_38h:
-		mmu.write_byte(sp, (pc + 1) >> 8);
-		mmu.write_byte(sp - 1, pc + 1);
-		sp -= 2;
+		mmu.write_byte(--sp, (pc + 1) >> 8);
+		mmu.write_byte(--sp, pc + 1);
 		pc = 0x0038;
 		cycles = 16;
 		break;
