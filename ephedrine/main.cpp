@@ -9,9 +9,11 @@
 #include <memory>
 // Testing
 #include "catch.hpp"
-#include "logger.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 #include "gb.h"
 #include "bit_utility.h"
+#include "spdlog/sinks/basic_file_sink.h"
 //#include "instructions.h"
 
 
@@ -35,13 +37,15 @@
 //}
 
 int main(int argc, char** argv) {
-	Logger::logger->set_level(spdlog::level::debug);
+	auto logger = spdlog::stdout_color_mt("stdout");
+	auto file_logger = spdlog::basic_logger_mt("file logger", "logs/cpu.txt");
+	logger->set_level(spdlog::level::debug);
 	bool quit = false;
 	std::vector<uint8_t> cart;
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/cpu_instrs.gb", std::ios::binary);
 	// test roms
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/01-special.gb", std::ios::binary);
-//	std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb", std::ios::binary);
+	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/11-op a,(hl).gb", std::ios::binary);
 
 	/* Passed */
@@ -58,13 +62,13 @@ int main(int argc, char** argv) {
 	//std::ifstream in("../opus5.gb", std::ios::binary);
 	//std::ifstream in("../tetris.gb", std::ios::binary);
 	//std::ifstream in("../Dr. Mario.gb", std::ios::binary);
-	//std::ifstream in("../Pokemon - Blue Version.gb", std::ios::binary);
+	std::ifstream in("../Pokemon - Blue Version.gb", std::ios::binary);
 	in.seekg(0, std::ios::end);
 	auto sz = in.tellg();
 	in.seekg(0, std::ios::beg);
 	cart.resize(sz / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
-	Logger::logger->info("cart size 0x{0:x} bytes", cart.size());
+	logger->info("cart size 0x{0:x} bytes", cart.size());
 	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
 	auto gb = std::make_unique<Gameboy>(cart);
 
@@ -137,12 +141,12 @@ int main(int argc, char** argv) {
 					{
 					case SDLK_r:
 						running = !running;
-						Logger::logger->info("Execution: {0}", running ? "resumed" : "paused");
+//						Logger::logger->info("Execution: {0}", running ? "resumed" : "paused");
 						break;
 					case SDLK_p:
 						gb->cpu.print();
 						gb->ppu.print();
-						Logger::logger->debug("--------------------------------");
+//						Logger::logger->debug("--------------------------------");
 						break;
 					default:
 						break;

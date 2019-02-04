@@ -1,6 +1,5 @@
 #include "ppu.h"
 #include "cpu.h"
-#include "logger.h"
 #include "bit_utility.h"
 
 
@@ -18,7 +17,7 @@ void PPU::print()
 	uint8_t currLY = mmu.read_byte(LY);
 	uint8_t scx = mmu.read_byte(SCX);
 	uint8_t scy = mmu.read_byte(SCY);
-	Logger::logger->debug("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
+//	Logger::logger->debug("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
 }
 
 uint8_t PPU::get_mode()
@@ -62,7 +61,7 @@ Pixel PPU::get_color(uint8_t tile)
 		pixel = palette[bgp];
 		break;
 	default:
-		Logger::logger->error("Tile palette error - invalid value: {0}", tile);
+//		Logger::logger->error("Tile palette error - invalid value: {0}", tile);
 		break;
 	}
 

@@ -2,7 +2,7 @@
 #include <vector>
 #include <iostream>
 
-#include "logger.h"
+#include "spdlog/spdlog.h"
 #include "bit_utility.h"
 #include "mmu.h"
 #include "ppu.h"
@@ -26,6 +26,7 @@ void MMU::load(std::vector<uint8_t> c)
 	if (c.empty()) return;
 
 	rom_banks = (32 << cartridge[0x0148]) / 16;
+	spdlog::get("stdout")->debug("Rom Banks: {0}", rom_banks);
 	if (rom_banks <= 2) {
 		int i = 0;
 		for (uint8_t byte : cartridge) {
@@ -87,7 +88,7 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 
 	// writes here set the lower 5 bits of the ROM bank
 	if (loc >= 0x2000 && loc <= 0x3FFF && rom_banks > 2) {
-		Logger::logger->info("bank switching?: {0:04x}", val);
+//		Logger::logger->info("bank switching?: {0:04x}", val);
 		if (val == 0 || val == 20 || val == 40 || val == 60) ++val;
 
 		for (int i = 0; i < 0x4000; ++i) {

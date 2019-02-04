@@ -158,7 +158,6 @@
   <ItemGroup>
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="gb.cpp" />
-    <ClCompile Include="logger.cpp" />
     <ClCompile Include="ppu.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mmu.cpp" />
@@ -169,7 +168,6 @@
     <ClInclude Include="cpu.h" />
     <ClInclude Include="gb.h" />
     <ClInclude Include="instructions.h" />
-    <ClInclude Include="logger.h" />
     <ClInclude Include="mmu.h" />
     <ClInclude Include="ppu.h" />
   </ItemGroup>

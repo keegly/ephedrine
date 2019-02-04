@@ -1,8 +1,6 @@
 #include <memory>
 
 #include "spdlog/spdlog.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
-
 
 #include "gb.h"
 #include "cpu.h"
