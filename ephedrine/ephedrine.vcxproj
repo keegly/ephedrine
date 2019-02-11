@@ -71,7 +71,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\Keeg\Documents\code\glfw\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui;C:\Users\Keeg\Documents\code\glfw\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Users\Keeg\Documents\code\glfw\lib-vc2015;C:\Program Files\Pthreads\lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -79,7 +79,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Users\Keeg\Documents\code\glfw\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui;C:\Users\Keeg\Documents\code\glfw\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Users\Keeg\Documents\code\glfw\lib-vc2015;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -93,12 +93,12 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_HAS_ITERATOR_DEBUGGING=0;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui;C:\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\SDL2\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -126,14 +126,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui;C:\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\SDL2\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -156,6 +156,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\GitHub\imgui\examples\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\..\..\GitHub\imgui\examples\imgui_impl_sdl.cpp" />
+    <ClCompile Include="..\..\..\GitHub\imgui\examples\libs\gl3w\GL\gl3w.c" />
+    <ClCompile Include="..\..\..\GitHub\imgui\imgui.cpp" />
+    <ClCompile Include="..\..\..\GitHub\imgui\imgui_demo.cpp" />
+    <ClCompile Include="..\..\..\GitHub\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\..\..\GitHub\imgui\imgui_widgets.cpp" />
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="gb.cpp" />
     <ClCompile Include="ppu.cpp" />

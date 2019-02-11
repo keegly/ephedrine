@@ -6,6 +6,7 @@
 #include "bit_utility.h"
 #include "mmu.h"
 #include "ppu.h"
+#include "gb.h"
 
 MMU::MMU()
 {
@@ -27,6 +28,8 @@ void MMU::load(std::vector<uint8_t> c)
 
 	rom_banks = (32 << cartridge[0x0148]) / 16;
 	spdlog::get("stdout")->debug("Rom Banks: {0}", rom_banks);
+	ram_banks = cartridge[0x0149];
+	spdlog::get("stdout")->debug("Ram Banks: {0:04X}", ram_banks);
 	if (rom_banks <= 2) {
 		int i = 0;
 		for (uint8_t byte : cartridge) {
@@ -71,7 +74,10 @@ uint8_t MMU::read_byte(uint16_t loc)
 		return boot_rom[loc];
 	if (cartridge.empty())
 		return 0xFF;
-
+	// Read from a ROM bank
+	/*if (rom_banks > 2 && loc >= 0x4000 && loc <= 0x7FFF) {
+		return cart_rom_banks[active_rom_bank][loc - 0x4000];
+	}*/
 
 	return memory[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
 
@@ -88,25 +94,41 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 
 	// writes here set the lower 5 bits of the ROM bank
 	if (loc >= 0x2000 && loc <= 0x3FFF && rom_banks > 2) {
-//		Logger::logger->info("bank switching?: {0:04x}", val);
+		spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}",  loc, val);
 		if (val == 0 || val == 20 || val == 40 || val == 60) ++val;
 
+		active_rom_bank = val % rom_banks;
+		spdlog::get("stdout")->debug("selecting rom bank {0}", active_rom_bank);
 		for (int i = 0; i < 0x4000; ++i) {
 			memory[0x4000 + i] = cart_rom_banks[val % rom_banks][i];
 		}
+		return;
+	}
+	// select the RAM/Upper bits of ROM bank
+	if (loc >= 0x4000 && loc <= 0x5FFF) {
+		spdlog::get("stdout")->debug("ram/upper bits of rom bank @ {0:04X} - {1:02X} val", loc, val);
+		return;
+	}
+	// Rom/Ram mode
+	if (loc >= 0x6000 && loc <= 0x7FFF) {
+		spdlog::get("stdout")->debug("rom/ram mode set @ {0:04X} - {1:02X} val", loc, val);
+		return;
+	}
+	if (loc >= 0xA000 && loc <= 0xBFFF) {
+		//spdlog::get("stdout")->debug("External ram access @ {0:04X} - {1:02X}", loc, val);
 	}
 	// no writing to ROM
 	if (loc <= 0x8000)
 		return;
+	// write to "mirror" ram too
 	if (loc >= 0xC000 && loc < 0xDE00) {
-		// write to "mirror" ram too
 		memory[loc] = val;
 		memory[loc + 0x2000] = val;
+		return;
 	}
-
-	/*if (loc == 0xFF02 && val == 0x81) {
-		Logger::logger->debug((char)this->memory[0xFF01]);
-	}*/
+	// Writes to DIV reset it
+	if (loc == DIV)
+		Gameboy::set_timer(0);
 
 	// deal with read only bits on the LCD STAT register
 	//if (loc == STAT) {
@@ -125,4 +147,22 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	// ^^ unless display is disabled
 
 	memory[loc] = val;
+}
+
+void MMU::set_register(uint16_t reg, uint8_t val)
+{
+	// Limit our access to only hardware registers
+	// Use the proper write_byte access for the rest of memory
+	// This is so we can set registers when needed while allowing actual writes
+	// to them to reset as appropriate or whatever.
+	if (reg < 0xFF00)
+		return;
+
+	memory[reg] = val;
+}
+
+uint8_t MMU::get_register(uint16_t reg)
+{
+	if (reg < 0xFF00) return 0;
+	return memory[reg];
 }

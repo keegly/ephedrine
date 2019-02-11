@@ -1,4 +1,5 @@
 #include "ppu.h"
+#include "gb.h"
 #include "cpu.h"
 #include "bit_utility.h"
 
@@ -28,6 +29,7 @@ uint8_t PPU::get_mode()
 void PPU::set_mode(uint8_t mode)
 {
 	mmu.set_ppu_mode(mode);
+	// set STAT interrupt flag?
 }
 
 /**
@@ -181,13 +183,13 @@ void PPU::update(int cycles)
  * Convert our internal graphics representation to a simple
  * pixel array for use by SDL or whatever
  */
-std::unique_ptr<uint8_t[]> PPU::render()
+std::unique_ptr<uint8_t[]> PPU::render() const
 {
 	auto pixels = std::make_unique<uint8_t[]>(160 * 144 * 3);
 
 	int count = 0;
-	for (auto & pixel : this->pixels) {
-		for (auto & x : pixel) {
+	for (const auto & pixel : this->pixels) {
+		for (const auto & x : pixel) {
 			pixels[count] = x.r;
 			pixels[count + 1] = x.g;
 			pixels[count + 2] = x.b;

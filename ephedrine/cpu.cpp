@@ -1,11 +1,13 @@
 #include <cstdint>
+#include <cstdio>
 #include <iostream>
+#include <iomanip>
 #include "gb.h"
 #include "cpu.h"
 #include "mmu.h"
-#include "logger.h"
 #include "bit_utility.h"
 #include "instructions.h"
+#include "spdlog/spdlog.h"
 
 CPU::CPU(MMU &m) : mmu(m), pc(0x0100), sp(0xFFFE)
 {
@@ -17,41 +19,35 @@ CPU::CPU(MMU &m) : mmu(m), pc(0x0100), sp(0xFFFE)
 
 void CPU::print()
 {
-	Logger::logger->debug("Registers: af:{0:04x} bc:{1:04x} de:{2:04x} hl:{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
-	Logger::logger->debug("pc: {0:04x} sp: {1:x}", pc, sp);
-	Logger::logger->debug("Z: {0} C: {1}", flags.z, flags.c);
+	spdlog::get("stdout")->debug("Registers: af:{0:04x} bc:{1:04x} de:{2:04x} hl:{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
+	spdlog::get("stdout")->debug("pc: {0:04x} sp: {1:x}", pc, sp);
+	spdlog::get("stdout")->debug("Z: {0} C: {1}", flags.z, flags.c);
 
 }
 
 void CPU::handle_interrupts()
 {
-	if (!ime)
-		return; // interrupts globally disabled
+	uint8_t if_reg = mmu.read_byte(IF);
+	uint8_t ie_reg = mmu.read_byte(IE);
+
+	if (!ime || (if_reg & 0x1F) == 0 || (ie_reg & 0x1F) == 0)
+		return; // interrupts globally disabled or nothing to handle
 	// check register 0xFF0F to see which interrupt was generated
 	constexpr uint16_t offset[]{ 0x0040, 0x0048, 0x0050, 0x0058, 0x0060 };
 	uint16_t address = 0x0000;
-	uint8_t mask = 0x01;
-	uint8_t if_reg = mmu.read_byte(IF);
 	for (uint8_t i = 0; i < 5; ++i) {
-		if (mask && if_reg) {
-			address = offset[i];
+		if (bit_check(if_reg, i) /*&& bit_check(ie_reg, i)*/)  {
+			// put current pc on stack and head to the proper service routine
+			////spdlog::get("stdout")->debug("int handler: {0:04X}, jumping from {1:04x}", offset[i], pc);
+			mmu.write_byte(--sp, pc >> 8);
+			mmu.write_byte(--sp, static_cast<uint8_t>(pc));
+			pc = offset[i];
 			// clear teh bit
 			bit_clear(if_reg, i);
 			mmu.write_byte(IF, if_reg);
-			break;
+			return;
 		}
-		mask <<= 1;
 	}
-	// no interrupts to handle, so bail
-	if (address == 0x0000) return;
-	// put current pc on stack and head to the proper service routine
-	--sp;
-	mmu.write_byte(sp, pc >> 8);
-	--sp;
-	mmu.write_byte(sp, static_cast<uint8_t>(pc));
-
-	// set pc to the correct interrupt handler address
-	pc = address;
 }
 
 uint8_t CPU::step()
@@ -62,12 +58,12 @@ uint8_t CPU::step()
 	//	Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);
 	/*if (pc > 0x023e)
 		Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
-
 	// this is just after the bg map should be shown for tetris
 	/*if (pc == 0x02c7 || pc == 0x0150)
 		Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
 	//Instruction opcode;
 	auto opcode = (Instruction)mmu.read_byte(pc);
+	//spdlog::get("file logger")->info("pc: {0:04X} - op: {1:02X}", pc, (uint8_t)opcode);
 	switch (opcode) {
 	// CB prefixed opcodes
 	case Instruction::prefix_cb:
@@ -1579,7 +1575,7 @@ uint8_t CPU::step()
 			break;
 		default:
 			//printf("Unknown opcode: 0x%0.2X 0x%0.2X\n", opcode, opcode2);
-			Logger::logger->error("Unknown opcode 0x{0:02X} 0x{1:02X} at 0x{2:04X}", (uint8_t)opcode, (uint8_t)mmu.read_byte(pc + 1), pc);
+			spdlog::get("stdout")->error("Unknown opcode 0x{0:02X} 0x{1:02X} at 0x{2:04X}", (uint8_t)opcode, (uint8_t)mmu.read_byte(pc + 1), pc);
 			halted = true;
 			break;
 		}
@@ -3783,7 +3779,7 @@ uint8_t CPU::step()
 		if ((registers.a & 0x0F) > 0x09)
 			flags.n ? registers.a -= 0x06 : registers.a += 0x06;
 		// #TODO: carry stuff
-		throw;
+		//throw;
 		++pc;
 		cycles = 4;
 		break;
@@ -3827,22 +3823,21 @@ uint8_t CPU::step()
 		break;
 	case Instruction::halt:
 		// suspend and wait for interrupts
-		if (!ime) ++pc; //act as a nop if interrupts are disabled
+		//if (!ime) ++pc; //act as a nop if interrupts are disabled
 		cycles = 4;
 		break;
 	default:
-		Logger::logger->error("Unknown opcode 0x{0:02x} at PC 0x{1:04x}", (uint8_t)opcode, pc);
+		spdlog::get("stdout")->error("Unknown opcode 0x{0:02x} at PC 0x{1:04x}", (uint8_t)opcode, pc);
 		halted = true;
 		//printf("Unknown opcode 0x%0.2X at PC 0x%0.4X\n", opcode, pc);
 		//std::cerr << "Unknown Opcode: " << std::hex << opcode << std::dec << std::endl;
 		break;
 	}
 
-	// Decode
 	return (uint8_t)opcode;
 }
 
-void CPU::rlc(uint8_t &reg)
+inline void CPU::rlc(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
 	reg <<= 1;
@@ -3858,7 +3853,7 @@ void CPU::rlc(uint8_t &reg)
 	flags.h = false;
 }
 
-void CPU::rrc(uint8_t &reg)
+inline void CPU::rrc(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 0);
 	reg >>= 1;
@@ -3874,7 +3869,7 @@ void CPU::rrc(uint8_t &reg)
 /*     -----------------------v
      ^-- CY <-- [7 <-- 0] <---
 */
-void CPU::rl(uint8_t &reg)
+inline void CPU::rl(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
 	reg <<= 1;
@@ -3892,7 +3887,7 @@ void CPU::rl(uint8_t &reg)
 	flags.h = false;
 }
 
-void CPU::srl(uint8_t &reg)
+inline void CPU::srl(uint8_t &reg)
 {
 	// shift right into carry
 	uint8_t bit = bit_check(reg, 0);
@@ -3906,7 +3901,7 @@ void CPU::srl(uint8_t &reg)
 /*	  *	v------------------------
 ** RR * --> CY --> [7 --> 0] ---^
 */
-void CPU::rr(uint8_t &reg)
+inline void CPU::rr(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 0);
 	reg >>= 1;
@@ -3919,7 +3914,7 @@ void CPU::rr(uint8_t &reg)
 	flags.n = false;
 }
 
-void CPU::sla(uint8_t &reg)
+inline void CPU::sla(uint8_t &reg)
 {
 	flags.c = bit_check(reg, 7);
 	reg <<= 1;
@@ -3928,7 +3923,7 @@ void CPU::sla(uint8_t &reg)
 	flags.n = false;
 }
 
-void CPU::sra(uint8_t &reg)
+inline void CPU::sra(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
 	flags.c = bit_check(reg, 0);
@@ -3939,7 +3934,7 @@ void CPU::sra(uint8_t &reg)
 	flags.n = false;
 }
 
-void CPU::swap(uint8_t &reg)
+inline void CPU::swap(uint8_t &reg)
 {
 	uint8_t temp = reg;
 	reg <<= 4;

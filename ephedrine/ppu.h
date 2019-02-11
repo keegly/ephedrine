@@ -6,14 +6,6 @@
 #include <array>
 #include "mmu.h"
 
-// Special Registers
-constexpr uint16_t LCDC = 0xFF40;
-constexpr uint16_t STAT = 0xFF41;
-constexpr uint16_t SCY  = 0xFF42;
-constexpr uint16_t SCX  = 0xFF43;
-constexpr uint16_t LY   = 0xFF44;
-constexpr uint16_t LYC	= 0xFF45;
-constexpr uint16_t BGP  = 0xFF47;
 
 // Modes
 constexpr uint8_t PPU_MODE_HBLANK	  = 0x00;
@@ -32,7 +24,7 @@ public:
 	PPU(MMU& m);
 	bool vblank;
 	void update(int cycles);
-	std::unique_ptr<uint8_t[]> render();
+	std::unique_ptr<uint8_t[]> render() const;
 	std::unique_ptr<uint8_t[]> render_bg();
 	std::unique_ptr<uint8_t[]> render_tiles();
 	void print();

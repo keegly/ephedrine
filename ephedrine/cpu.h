@@ -5,9 +5,6 @@
 #include "bit_utility.h"
 #include "spdlog\fmt\ostr.h"
 
-// Interrupt Flag
-constexpr uint16_t IF = 0xFF0F;
-
 struct Flags {
 	bool z;		// zero - bit 7
 	bool n;		// subtraction - bit 6
@@ -62,8 +59,11 @@ public:
 	template<typename OStream>
 	friend OStream &operator<<(OStream &os, const CPU &c)
 	{
-		return os << "registers: af: " << c.registers.af << " bc: " << c.registers.bc << " de: " << c.registers.de <<
-			" hl: " << c.registers.hl;
+		os << "registers: af: 0x" << std::hex << os.width(4) << os.fill('0') << c.registers.af << " bc: 0x" << c.registers.bc << " de: 0x" << c.registers.de <<
+			" hl: 0x" << c.registers.hl << std::endl;
+		os << "ALU Flags: Z: " << c.flags.z << " H: " << c.flags.h << " N: " << c.flags.n << " C: " << c.flags.c << std::endl;
+		os << "Program Counter: 0x" << c.pc << ", Stack Pointer: 0x" << c.sp << std::endl;
+		return os;
 	}
 private:
 	Registers registers;
