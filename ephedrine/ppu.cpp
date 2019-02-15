@@ -83,10 +83,14 @@ void PPU::update(int cycles)
 {
 	uint8_t lcdc = mmu.read_byte(LCDC);
 	// LCD Disabled
-	if (!bit_check(lcdc, 7))
+	if (!bit_check(lcdc, 7)) {
+		mmu.write_byte(LY, 0);
+		curr_scanline_cycles = 0;
 		return;
+	}
 
 	uint8_t currLY = mmu.read_byte(LY);
+	uint8_t stat = mmu.read_byte(STAT);
 
 	if (curr_scanline_cycles <= 80 && currLY < 144 && !oam_done) {
 		// OAM DMA XFER
@@ -151,6 +155,22 @@ void PPU::update(int cycles)
 	if (curr_scanline_cycles >= 456) {
 		// inc Ly (next line)
 		mmu.write_byte(LY, currLY + 1);
+		uint8_t lyc = mmu.read_byte(LYC);
+		if (bit_check(stat, 6) && (currLY + 1) == lyc) {
+			bit_set(stat, 2);
+			mmu.set_register(STAT, stat);
+			// also request interrupt here?
+			uint8_t int_flag = mmu.get_register(IF);
+			bit_set(int_flag, 1);
+			mmu.set_register(IF, int_flag);
+		}
+		else {
+			bit_clear(stat, 2);
+			mmu.set_register(STAT, stat);
+			uint8_t int_flag = mmu.get_register(IF);
+			bit_clear(int_flag, 1);
+			mmu.set_register(IF, int_flag);
+		}
 		curr_scanline_cycles = 0;
 		oam_done = false;
 		finished_current_line = false;
@@ -250,15 +270,16 @@ std::unique_ptr<uint8_t[]> PPU::render_bg()
  */
 std::unique_ptr<uint8_t[]> PPU::render_tiles()
 {
-	auto pixels = std::make_unique<uint8_t[]>(128 * 256 * 3);
+	auto pixels = std::make_unique<uint8_t[]>(128 * 128 * 3);
 
 	uint8_t tile_low;
 	uint8_t tile_high;
+	uint16_t tile_row = 0;
 	int count = 0;
 
-	for (int y = 0; y < 256; ++y) {
+	for (int y = 0; y < 128; ++y) {
 		for (int x = 0; x < 16; ++x) {
-			uint16_t tileaddr = 0x8000 + (x * 16);
+			uint16_t tileaddr = 0x8000 + tile_row + (x * 16);
 			tileaddr = tileaddr + ((y % 8) * 2);
 			tile_low = mmu.read_byte(tileaddr);
 			tile_high = mmu.read_byte(tileaddr + 1);
@@ -277,6 +298,8 @@ std::unique_ptr<uint8_t[]> PPU::render_tiles()
 				count += 3;
 			}
 		}
+		if (y % 8 == 0 && y != 0)
+			tile_row += 0x0100;
 	}
 
 	return pixels;

@@ -29,6 +29,12 @@ public:
 	std::unique_ptr<uint8_t[]> render_tiles();
 	void print();
 	inline uint8_t get_mode();
+	template<typename OStream>
+	friend OStream &operator<<(OStream &os, const PPU &p)
+	{
+		os << "Curr scanline cycles: " << std::dec << p.curr_scanline_cycles << " VBl: " << p.vblank;
+		return os;
+	}
 private:
 	MMU& mmu;
 	Pixel pixels[144][160]; // 160x144 screen, 3 bytes per pixel

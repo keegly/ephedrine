@@ -15,13 +15,15 @@ CPU::CPU(MMU &m) : mmu(m), pc(0x0100), sp(0xFFFE)
 	registers.bc = 0x0013;
 	registers.de = 0x00D8;
 	registers.hl = 0x014D;
+
+	cycles = 0;
 }
 
 void CPU::print()
 {
-	spdlog::get("stdout")->debug("Registers: af:{0:04x} bc:{1:04x} de:{2:04x} hl:{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
-	spdlog::get("stdout")->debug("pc: {0:04x} sp: {1:x}", pc, sp);
-	spdlog::get("stdout")->debug("Z: {0} C: {1}", flags.z, flags.c);
+	spdlog::get("stdout")->debug("Registers: af:0x{0:04x} bc:0x{1:04x} de:0x{2:04x} hl:0x{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
+	spdlog::get("stdout")->debug("pc: 0x{0:04x} sp: 0x{1:04x}", pc, sp);
+	spdlog::get("stdout")->debug("Z: {0} N: {1} H: {2} C: {3}", flags.z, flags.n, flags.h, flags.c);
 
 }
 
@@ -36,7 +38,7 @@ void CPU::handle_interrupts()
 	constexpr uint16_t offset[]{ 0x0040, 0x0048, 0x0050, 0x0058, 0x0060 };
 	uint16_t address = 0x0000;
 	for (uint8_t i = 0; i < 5; ++i) {
-		if (bit_check(if_reg, i) /*&& bit_check(ie_reg, i)*/)  {
+		if (bit_check(if_reg, i) && bit_check(ie_reg, i))  {
 			// put current pc on stack and head to the proper service routine
 			////spdlog::get("stdout")->debug("int handler: {0:04X}, jumping from {1:04x}", offset[i], pc);
 			mmu.write_byte(--sp, pc >> 8);
@@ -58,12 +60,150 @@ uint8_t CPU::step()
 	//	Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);
 	/*if (pc > 0x023e)
 		Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
+	/** Tetris - 0x027A is where we're overwriting the bg with 0th tile
+						all the way from 9FFF (bottom of background) to 7fff (before top of tile map)
+	 * 0x02c4 -> call 29A6 / checks the joypad for inputs and returns
+	   0x02c7 -> call 02F8
+					ld a, ffe1
+					rst 28
+					add a
+					pop hl -> pops the return address (02FB) and puts in hl
+					ld e, a
+					ld d, 0
+					add hl, de
+					ld e, (hl)
+					inc hl
+					ld d, hl
+					push de
+					pop hl
+					jp hl (0369)
+					call 2820 / sets up interrupts and lcd
+					ld a, ff0f ;int enable
+					ld ffa1, a
+					res 0,a
+					ld ffff, a ; int enable
+					ld a, ff44 ; LY <-
+					cp a, 91         |
+					jr nz, 2828  ----^
+					ld a, ff40 ; lcd ctrl
+					and a, 7f	- disables lcd ( bit 7 off)
+					ld ff40, a ; lcd ctrl
+					ld a, ffa1
+					ld ffff, a  ; int enable
+					ret / returns to 036c
+					call 27d7
+					call 27c3 / loads the splash tiles into memory (letters only)
+					ld hl, 415f
+					ld bc, 0138
+					ld de, 8000
+					ldi a, (hl) <--
+					ld (de), a    |
+					inc de        |
+					ld (de), a    |
+					inc de        |
+					dec bc        |
+					ld a, b       |
+					or c          |
+					jr nz, 27cc --^
+					ret  / finished loading splash tiles into memory
+					ld bc, 0da0 / 0x27da
+					call 27a4 / load the rest of the game tiles
+					ldi a, (hl) <--
+					ld (de), a    |
+					inc de        |
+					dec bc        |
+					ld a, b       |
+					or c          |
+					jr nz, 27a4 --^
+					ret / finished loading game tiles
+					ret 0x27e0
+					ret 0x036f
+					ld de, 4a07
+					call 27eb / load background map ?
+					ld hl, 9800
+					ld 2 , 12
+					push hl      <------
+					ld c, 14            |
+					ld a, (de)  <---    |
+					ldi (hl), a     |   |
+					inc de          |   |
+					dec c           |   |
+					jr nz, 27f3 ----^   |
+					pop hl              |
+					push de             |
+					ld de, 0020         |
+					add hl, de          |
+					pop de              |
+					dec b               |
+					jr nz 0x27f0    ----^
+					ret - 0x0375
+					call 178a
+					xor a
+					ld hl, c000
+					ld b, a0
+					ldi (hl), a  <--
+					dec b           |
+					jr nz, 1790  ---^
+					ret 0x0378
+					ld hl, c300
+					ld de, 6450
+					ld a, (de)  <--
+					ldi (hl), a    |
+					inc de         |
+					ld a, h        |
+					cp a, c4       |
+					jr nz, 037e   -^
+					ld a, d3
+					ld ff40, a ; lcd ctrl - enable lcd and BG, now visible.
+					ld a, FA
+		  0x038a -> ld ffa6, a
+					ld a, 25
+					ld ffe1, a
+					ret
+		  0x02ca -> call 7FF0
+					jp 64d3
+					push af
+					push bc
+					push de
+					push hl
+					ld a, (df7f)
+					cp a, 01
+					jr z, 6524
+					cp a, 02
+					jr z, 655d
+					...
+					call 64d2
+					ret			... ?
+					call 69dd
+					...
+					ret
+					call 69fd
+					ret
+					call 683c
+					...
+					ret
+					call 6a21
+					ld hl, df38
+					ldi a, (hl)
+					and a
+					ret z
+					call 6c44
+					...
+					ret z
+	 */
 	// this is just after the bg map should be shown for tetris
-	/*if (pc == 0x02c7 || pc == 0x0150)
-		Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
+	/*if (pc == 0x027c3 || pc == 0x27e0 || pc == 0x0386)
+		spdlog::get("stdout")->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
 	//Instruction opcode;
+	if (pc == 0x29cc)
+		int i = 0;
 	auto opcode = (Instruction)mmu.read_byte(pc);
 	//spdlog::get("file logger")->info("pc: {0:04X} - op: {1:02X}", pc, (uint8_t)opcode);
+	//spdlog::get("file logger")->trace("Registers: af:0x{0:04X} bc:0x{1:04X} de:0x{2:04X} hl:0x{3:04X}", registers.af, registers.bc, registers.de, registers.hl);
+	//spdlog::get("file logger")->trace("pc: 0x{0:04X} opcode: 0x{1:02X} sp: 0x{2:04X}", pc, (uint8_t)opcode, sp);
+	//spdlog::get("file logger")->trace("Z: {0} N: {1} H: {2} C: {3}", flags.z, flags.n, flags.h, flags.c);
+	//spdlog::get("file logger")->trace("--------------------------------------------------------------------------");
+
 	switch (opcode) {
 	// CB prefixed opcodes
 	case Instruction::prefix_cb:
@@ -3779,7 +3919,7 @@ uint8_t CPU::step()
 		if ((registers.a & 0x0F) > 0x09)
 			flags.n ? registers.a -= 0x06 : registers.a += 0x06;
 		// #TODO: carry stuff
-		//throw;
+		throw;
 		++pc;
 		cycles = 4;
 		break;
@@ -3823,6 +3963,7 @@ uint8_t CPU::step()
 		break;
 	case Instruction::halt:
 		// suspend and wait for interrupts
+		// #TODO - Fix / Actually implement
 		//if (!ime) ++pc; //act as a nop if interrupts are disabled
 		cycles = 4;
 		break;

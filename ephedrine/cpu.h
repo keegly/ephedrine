@@ -4,6 +4,7 @@
 #include "mmu.h"
 #include "bit_utility.h"
 #include "spdlog\fmt\ostr.h"
+#include <iomanip>
 
 struct Flags {
 	bool z;		// zero - bit 7
@@ -56,13 +57,32 @@ public:
 	void nop();
 	void print();
 	bool halted = false;
+	// for ui
+	const Registers get_registers() {
+		return this->registers;
+	}
+	Flags get_flags() {
+		return this->flags;
+	}
+	const CPU* get_state() {
+		return this;
+	}
+	uint16_t get_pc() const {
+		return this->pc;
+	}
 	template<typename OStream>
 	friend OStream &operator<<(OStream &os, const CPU &c)
 	{
-		os << "registers: af: 0x" << std::hex << os.width(4) << os.fill('0') << c.registers.af << " bc: 0x" << c.registers.bc << " de: 0x" << c.registers.de <<
-			" hl: 0x" << c.registers.hl << std::endl;
-		os << "ALU Flags: Z: " << c.flags.z << " H: " << c.flags.h << " N: " << c.flags.n << " C: " << c.flags.c << std::endl;
-		os << "Program Counter: 0x" << c.pc << ", Stack Pointer: 0x" << c.sp << std::endl;
+		os << "registers: af: 0x" << std::hex << std::setw(4) << std::setfill('0')
+			<< c.registers.af << " bc: 0x" << std::setw(4) << std::setfill('0')
+			<< c.registers.bc << " de: 0x" << std::setw(4) << std::setfill('0')
+			<< c.registers.de << " hl: 0x" << std::setw(4) << std::setfill('0')
+			<< c.registers.hl << '\n';
+		os << "ALU Flags: Z: " << c.flags.z << " H: " << c.flags.h << " N: "
+			<< c.flags.n << " C: " << c.flags.c << '\n';
+		os << "Program Counter: 0x" << std::setw(4) << std::setfill('0')
+			<< c.pc << ", Stack Pointer: 0x" << std::setw(4) << std::setfill('0')
+			<< c.sp << '\n';
 		return os;
 	}
 private:

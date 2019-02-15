@@ -23,7 +23,7 @@ MMU::MMU(std::vector<uint8_t> cart) : cartridge(cart)
 
 void MMU::load(std::vector<uint8_t> c)
 {
-	//boot_rom_enabled = true;
+	boot_rom_enabled = false;
 	if (c.empty()) return;
 
 	rom_banks = (32 << cartridge[0x0148]) / 16;
@@ -78,6 +78,12 @@ uint8_t MMU::read_byte(uint16_t loc)
 	/*if (rom_banks > 2 && loc >= 0x4000 && loc <= 0x7FFF) {
 		return cart_rom_banks[active_rom_bank][loc - 0x4000];
 	}*/
+	// joypad bits 6 and 7 always return 1
+	if (loc == 0xFF00) {
+		bitmask_set(memory[loc], 0xC0); // should be C0
+	}
+	if (loc == 0xFF80)
+		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
 
 	return memory[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
 
@@ -145,6 +151,16 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	//if ((loc >= 0x8000 && loc < 0xA000))
 	// TODO: disallow writing to oam  (0xFE00 - 0xFE9F) unless in modes 0 - 1
 	// ^^ unless display is disabled
+	// Joypad writes (for button/direction selection only change bits 4/5)
+	if (loc == 0xFf00) {
+		bitmask_clear(memory[loc], 0x30);
+		bitmask_set(memory[loc], val & 0x30);
+		//val = memory[loc] | val;
+		return;
+	}
+		//spdlog::get("stdout")->debug("FF00 write: {0:02X}", val);
+	if (loc == 0xFF80)
+		spdlog::get("stdout")->debug("FF80 write: {0:02X}", val);
 
 	memory[loc] = val;
 }

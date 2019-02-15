@@ -1,6 +1,8 @@
 #ifndef GB_H
 #define GB_H
 
+#include <mutex>
+
 #include "cpu.h"
 #include "mmu.h"
 #include "ppu.h"
@@ -42,6 +44,7 @@ class Gameboy
 		void handle_interrupts();
 		void handle_input(uint8_t joypad);
 		void tick(int ticks);
+		void tick_until(uint16_t pc);
 		void load(std::vector<uint8_t> cart);
 		static void set_timer(uint16_t t) { divider = t; }
 		uint16_t get_timer() { return divider; }
@@ -49,12 +52,14 @@ class Gameboy
 		CPU cpu;
 		MMU mmu;
 		PPU ppu;
-	private:
 		const int max_cycles = 70224;
+	private:
+		// a vert refresh after this many cycles
 		int curr_screen_cycles = 0;
 		static uint16_t divider;
 		int timer_ticks;
 		const int clocks[4] = { 1024, 16, 64, 256 };
+		std::mutex mutex;
 };
 
 #endif // !GB_H
