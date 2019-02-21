@@ -2,6 +2,7 @@
 #include "gb.h"
 #include "cpu.h"
 #include "bit_utility.h"
+#include "spdlog/spdlog.h"
 
 
 PPU::PPU(MMU& m) : mmu(m)
@@ -36,7 +37,7 @@ void PPU::set_mode(uint8_t mode)
  * Take a 2 bit tile code (0-3) and return the correct
  * color according to the current palette settings
  */
-Pixel PPU::get_color(uint8_t tile)
+Pixel PPU::get_color(uint8_t tile) const
 {
 	uint8_t bgp = mmu.read_byte(BGP);
 	Pixel pixel;
@@ -63,7 +64,46 @@ Pixel PPU::get_color(uint8_t tile)
 		pixel = palette[bgp];
 		break;
 	default:
-//		Logger::logger->error("Tile palette error - invalid value: {0}", tile);
+		spdlog::get("stdout")->error("Tile palette error - invalid value: {0}", tile);
+		break;
+	}
+
+	return pixel;
+}
+
+Pixel PPU::get_sprite_color(uint8_t tile, bool obp_select)
+{
+	//uint8_t obp;
+	uint8_t obp = mmu.read_byte(OBP0);
+	//uint8_t obp1 = mmu.read_byte(OBP1);
+	//obp_select ? obp = obp1 : obp0;
+	Pixel pixel;
+
+	switch (tile) {
+	case 0:
+		// bits 0-1 (transparent)
+		pixel.r = 255;
+		pixel.g = 255;
+		pixel.b = 255;
+		pixel.a = 0;
+		break;
+	case 1:
+		// bits 2-3
+		obp = (obp >> 2) & 3U;
+		pixel = palette[obp];
+		break;
+	case 2:
+		// bits 4-5
+		obp = (obp >> 4) & 3U;
+		pixel = palette[obp];
+		break;
+	case 3:
+		// bits 6-7
+		obp = (obp >> 6) & 3U;
+		pixel = palette[obp];
+		break;
+	default:
+		spdlog::get("stdout")->error("Sprite Tile palette error - invalid value: {0}", tile);
 		break;
 	}
 
@@ -96,6 +136,25 @@ void PPU::update(int cycles)
 		// OAM DMA XFER
 		// set mode
 		set_mode(PPU_MODE_OAM_SEARCH);
+		// reset our data from the prev line (if any)
+		visible_sprites.clear();
+		// #TODO: if sprites enabled?
+		// loop through our (up to) 40 sprites in the OAM table
+		for (int i = 0xFE00; i < 0xFE9F; i += 4) {
+			Sprite s{ s.y = mmu.read_byte(i), s.x = mmu.read_byte(i + 1),
+				s.tile = mmu.read_byte(i + 2), s.flags = mmu.read_byte(i + 3),
+			s.oam_addr = i };
+			// sprite off screen
+			if (s.y <= 0 || s.y >= 160)
+				continue;
+			// part of this sprite is on our line
+			// sprite height ??
+			if ((s.y - 8 >= currLY && (s.y - 8) < (currLY + 8)) && visible_sprites.size() < 10) {
+				visible_sprites.push_back(s);
+				//spdlog::get("stdout")->debug("Visible sprite: x: {0} y: {1}, tile: {2}, flags: {3:02X}", s.x, s.y, s.tile, s.flags);
+			}
+		}
+
 		oam_done = true;
 	}
 	if (curr_scanline_cycles >= 80 && curr_scanline_cycles <= (80 + 172) && currLY < 144 && !finished_current_line) {
@@ -112,16 +171,17 @@ void PPU::update(int cycles)
 			// leftmost?
 			uint8_t tile_num = mmu.read_byte(bg_map_address);
 			// which we can use to grab the actual tile bytes
-			// TODO: use the register instead  of hardcoding 8000
 			// grab and discard the first byte becuase that's what hardware does?
-			uint16_t tileaddr = 0x8000 + (tile_num * 16);
+			uint16_t tileset;
+			bit_check(lcdc, 4) ? tileset = 0x8000 : tileset = 0x8800;
+			uint16_t tileaddr = tileset + (tile_num * 16);
 			uint8_t tile_low = mmu.read_byte(tileaddr);
 			uint8_t tile_high = mmu.read_byte(tileaddr + 1);
 			int count = 0;
 			// background (20 tiles wide)
 			for (int i = 0; i < 20; ++i) {
 				tile_num = mmu.read_byte(bg_map_address);
-				tileaddr = 0x8000 + (tile_num * 16);
+				tileaddr = tileset + (tile_num * 16);
 				// get the right vertical row of the tile
 				tileaddr = tileaddr + ((ybase % 8) * 2);
 				tile_low = mmu.read_byte(tileaddr);
@@ -143,9 +203,36 @@ void PPU::update(int cycles)
 			}
 
 			// if window enabled, render
+			if (bit_check(lcdc, 5)) {
+
+			}
+
 			// if sprites enabled, render
+			if (bit_check(lcdc, 1)) {
+				// 8x8 or 8x16
+				uint8_t height;
+				uint8_t tile_low;
+				uint8_t tile_high;
+				bit_check(lcdc, 2) ? height = 16 : height = 8;
+				for (Sprite &s : visible_sprites) {
+					uint16_t tileaddr = 0x8000 + (s.tile * 16);
+					tileaddr += ((currLY + 8) - (s.y - 8)) * 2;
+					spdlog::get("stdout")->debug("sprite tile address: {0:04x} OAM: {3:04X} LY: {1} sprite y pos: {2}", tileaddr, currLY, s.y, s.oam_addr);
+					tile_low = mmu.read_byte(tileaddr);
+					tile_high = mmu.read_byte(tileaddr + 1);
+					int index = 0;
+					for (int bit = 7; bit >= 0; --bit) {
+						uint8_t bit_low = bit_check(tile_low, bit);
+						uint8_t bit_high = bit_check(tile_high, bit);
+						uint8_t palette = (bit_high << 1) | bit_low;
+						Pixel pixel = get_sprite_color(palette, bit_check(s.flags, 4));
+						if (pixel.a > 0)
+							pixels[currLY][(s.x - 8) + index] = pixel;
+						++index;
+					}
+				}
+			}
 			finished_current_line = true;
-			//Logger::logger->debug("PPU::finished_current_line={0}", finished_current_line);
 		}
 	}
 	if (curr_scanline_cycles >= (80 + 172) && curr_scanline_cycles < 456 && currLY < 144) {
@@ -205,7 +292,7 @@ void PPU::update(int cycles)
  */
 std::unique_ptr<uint8_t[]> PPU::render() const
 {
-	auto pixels = std::make_unique<uint8_t[]>(160 * 144 * 3);
+	auto pixels = std::make_unique<uint8_t[]>(160 * 144 * 4);
 
 	int count = 0;
 	for (const auto & pixel : this->pixels) {
@@ -213,7 +300,8 @@ std::unique_ptr<uint8_t[]> PPU::render() const
 			pixels[count] = x.r;
 			pixels[count + 1] = x.g;
 			pixels[count + 2] = x.b;
-			count += 3;
+			pixels[count + 3] = x.a;
+			count += 4;
 		}
 	}
 
@@ -223,9 +311,9 @@ std::unique_ptr<uint8_t[]> PPU::render() const
 /**
  * Render the whole background tile map
  */
-std::unique_ptr<uint8_t[]> PPU::render_bg()
+std::unique_ptr<uint8_t[]> PPU::render_bg() const
 {
-	auto pixels = std::make_unique<uint8_t[]>(256 * 256 * 3);
+	auto pixels = std::make_unique<uint8_t[]>(256 * 256 * 4);
 
 	uint16_t tileaddr;
 	uint8_t tile_num;
@@ -255,7 +343,8 @@ std::unique_ptr<uint8_t[]> PPU::render_bg()
 				pixels[count] = pixel.r;
 				pixels[count + 1] = pixel.g;
 				pixels[count + 2] = pixel.b;
-				count += 3;
+				pixels[count + 3] = pixel.a;
+				count += 4;
 			}
 			// next tile on this row
 			bg_map_address += 1;
@@ -268,16 +357,16 @@ std::unique_ptr<uint8_t[]> PPU::render_bg()
 /**
  * Render the tile data, to aid in debugging
  */
-std::unique_ptr<uint8_t[]> PPU::render_tiles()
+std::unique_ptr<uint8_t[]> PPU::render_tiles() const
 {
-	auto pixels = std::make_unique<uint8_t[]>(128 * 128 * 3);
+	auto pixels = std::make_unique<uint8_t[]>(128 * 256* 4);
 
 	uint8_t tile_low;
 	uint8_t tile_high;
 	uint16_t tile_row = 0;
 	int count = 0;
 
-	for (int y = 0; y < 128; ++y) {
+	for (int y = 0; y < 256; ++y) {
 		for (int x = 0; x < 16; ++x) {
 			uint16_t tileaddr = 0x8000 + tile_row + (x * 16);
 			tileaddr = tileaddr + ((y % 8) * 2);
@@ -295,7 +384,8 @@ std::unique_ptr<uint8_t[]> PPU::render_tiles()
 				pixels[count] = pixel.r;
 				pixels[count + 1] = pixel.g;
 				pixels[count + 2] = pixel.b;
-				count += 3;
+				pixels[count + 3] = pixel.a;
+				count += 4;
 			}
 		}
 		if (y % 8 == 0 && y != 0)

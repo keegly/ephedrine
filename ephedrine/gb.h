@@ -26,6 +26,8 @@ constexpr uint16_t SCX  = 0xFF43;
 constexpr uint16_t LY   = 0xFF44;
 constexpr uint16_t LYC	= 0xFF45;
 constexpr uint16_t BGP  = 0xFF47;
+constexpr uint16_t OBP0 = 0xFF48;
+constexpr uint16_t OBP1 = 0xFF49;
 
 constexpr uint8_t INPUT_START = 0x08;
 constexpr uint8_t INPUT_SELECT   = 0x04;

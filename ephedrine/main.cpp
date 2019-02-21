@@ -77,8 +77,9 @@ int main(int argc, char** argv) {
 	//std::ifstream in("../Pokemon - Blue Version.gb", std::ios::binary);
 	in.seekg(0, std::ios::end);
 	auto sz = in.tellg();
+	assert(sz != -1);
 	in.seekg(0, std::ios::beg);
-	cart.resize(sz / sizeof(uint8_t));
+	cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
 	logger->info("cart size 0x{0:x} bytes", cart.size());
 	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
@@ -113,7 +114,7 @@ int main(int argc, char** argv) {
 	SDL_SetRenderDrawColor(tileren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(tileren);*/
 
-	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 160, 144);
+	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 160, 144);
 	//SDL_Texture *bgtex = SDL_CreateTexture(bgren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 256, 256);
 	//SDL_Texture *tiletex = SDL_CreateTexture(tileren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 128, 128);
 
@@ -136,6 +137,8 @@ int main(int argc, char** argv) {
 	bool running = false;
 	bool bg_enabled = false;
 	uint8_t mask = 0x0F;
+	Registers reg_state;
+	Flags flag_state;
 	while (!quit) {
 		auto start = std::chrono::high_resolution_clock::now();
 		if (running)
@@ -234,12 +237,12 @@ int main(int argc, char** argv) {
 		ImGui::NewFrame();
 
 		ImGui::Begin("Debug");
-		std::stringstream str{};
-		str << gb->cpu;
-		str << gb->ppu;
-		Registers reg_state = gb->cpu.get_registers();
-		Flags flag_state = gb->cpu.get_flags();
-		ImGui::Text("%s", str.str().data());
+		//auto sprites = gb->ppu.get_visible_sprites();
+		//std::stringstream str{};
+		//str << gb->ppu;
+		reg_state = gb->cpu.get_registers();
+		flag_state = gb->cpu.get_flags();
+		//ImGui::Text("%s", str.str().data());
 		ImGui::Text("Joypad Register status: 0x%.2x", gb->mmu.read_byte(P1));
 		ImGui::Text("IF Reg: 0x%0.2x", gb->mmu.get_register(IF));
 		ImGui::Text("IE Reg: 0x%0.2x", gb->mmu.get_register(IE));
@@ -253,6 +256,8 @@ int main(int argc, char** argv) {
 		ImGui::Text("BC= 0x%0.4X", reg_state.bc);
 		ImGui::Text("DE= 0x%0.4X", reg_state.de);
 		ImGui::Text("HL= 0x%0.4X", reg_state.hl);
+		ImGui::Text("PC= 0x%0.4X", gb->cpu.get_pc());
+		ImGui::Text("SP= 0x%0.4X", gb->cpu.get_sp());
 		ImGui::Checkbox("z", &flag_state.z);
 		ImGui::SameLine();
 		ImGui::Checkbox("n", &flag_state.n);
@@ -260,6 +265,9 @@ int main(int argc, char** argv) {
 		ImGui::Checkbox("h", &flag_state.h);
 		ImGui::SameLine();
 		ImGui::Checkbox("c", &flag_state.c);
+		/*for (Sprite &s : sprites) {
+			ImGui::Text("Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X", s.y, s.x, s.tile, s.flags);
+		}*/
 		ImGui::NextColumn();
 		ImGui::Text("lcdc= 0x%0.2X", gb->mmu.get_register(LCDC));
 		ImGui::Text("stat= 0x%0.2X", gb->mmu.get_register(STAT));
@@ -292,7 +300,7 @@ int main(int argc, char** argv) {
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, gb->ppu.render_bg().get());
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, gb->ppu.render_bg().get());
 			ImGui::Image((void *)bg_tex, ImVec2(256, 256));
 		}
 		ImGui::End();
@@ -303,8 +311,8 @@ int main(int argc, char** argv) {
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, gb->ppu.render_tiles().get());
-			ImGui::Image((void *)tile_tex, ImVec2(128*2, 128*2));
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, gb->ppu.render_tiles().get());
+			ImGui::Image((void *)tile_tex, ImVec2(128*2, 256*2));
 		}
 		ImGui::End();
 
@@ -321,7 +329,7 @@ int main(int argc, char** argv) {
 		//}
 
 		//auto pixels = gb->ppu.render().get();
-		SDL_UpdateTexture(tex, nullptr, gb->ppu.render().get(), 160 * 3);
+		SDL_UpdateTexture(tex, nullptr, gb->ppu.render().get(), 160 * 4);
 		SDL_RenderClear(ren);
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);

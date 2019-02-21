@@ -82,8 +82,8 @@ uint8_t MMU::read_byte(uint16_t loc)
 	if (loc == 0xFF00) {
 		bitmask_set(memory[loc], 0xC0); // should be C0
 	}
-	if (loc == 0xFF80)
-		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
+	//if (loc == 0xFF80)
+//		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
 
 	return memory[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
 
@@ -100,7 +100,7 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 
 	// writes here set the lower 5 bits of the ROM bank
 	if (loc >= 0x2000 && loc <= 0x3FFF && rom_banks > 2) {
-		spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}",  loc, val);
+		spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}", loc, val);
 		if (val == 0 || val == 20 || val == 40 || val == 60) ++val;
 
 		active_rom_bank = val % rom_banks;
@@ -147,20 +147,38 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	// any writing to 0xFF44 resets it
 	/*if (loc == 0xFF44)
 		val = 0;*/
-	// TODO: disallow writing to vram (0x8000 - 0x9FFF) unless in modes 0 - 2
-	//if ((loc >= 0x8000 && loc < 0xA000))
-	// TODO: disallow writing to oam  (0xFE00 - 0xFE9F) unless in modes 0 - 1
-	// ^^ unless display is disabled
-	// Joypad writes (for button/direction selection only change bits 4/5)
-	if (loc == 0xFf00) {
+		// TODO: disallow writing to vram (0x8000 - 0x9FFF) unless in modes 0 - 2
+		//if ((loc >= 0x8000 && loc < 0xA000))
+		// TODO: disallow writing to oam  (0xFE00 - 0xFE9F) unless in modes 0 - 1
+		// ^^ unless display is disabled
+		// Joypad writes (for button/direction selection only change bits 4/5)
+	if (loc == 0xFF00) {
 		bitmask_clear(memory[loc], 0x30);
 		bitmask_set(memory[loc], val & 0x30);
 		//val = memory[loc] | val;
 		return;
 	}
-		//spdlog::get("stdout")->debug("FF00 write: {0:02X}", val);
-	if (loc == 0xFF80)
-		spdlog::get("stdout")->debug("FF80 write: {0:02X}", val);
+
+	// OAM Data Transfer
+	if (loc == 0xFF46) {
+		// val is the MSB of our source xfer address
+		uint16_t src = val << 8;
+		// bottom of OEM Ram
+		uint16_t dest = 0xFE00;
+		for (int i = 0; i < 160; i += 4)
+		{
+			memory[dest + i] = memory[src + i];
+			memory[dest + (i + 1)] = memory[src + (i + 1)];
+			memory[dest + (i + 2)] = memory[src + (i + 2)];
+			memory[dest + (i + 3)] = memory[src + (i + 3)];
+		}
+		return;
+	}
+
+
+	//spdlog::get("stdout")->debug("FF00 write: {0:02X}", val);
+//if (loc == 0xFF80)
+	//spdlog::get("stdout")->debug("FF80 write: {0:02X}", val);
 
 	memory[loc] = val;
 }

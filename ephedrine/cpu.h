@@ -70,6 +70,9 @@ public:
 	uint16_t get_pc() const {
 		return this->pc;
 	}
+	uint16_t get_sp() const {
+		return this->sp;
+	}
 	template<typename OStream>
 	friend OStream &operator<<(OStream &os, const CPU &c)
 	{
