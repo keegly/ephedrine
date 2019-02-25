@@ -10,6 +10,7 @@
 //#include "instructions.h"
 
 uint16_t Gameboy::divider = 0;
+std::array<uint8_t, 2> Gameboy::joypad{ {0xf, 0xf} };
 
 Gameboy::Gameboy(std::vector<uint8_t> cart) : mmu(cart), cpu(mmu), ppu(mmu)
 {
@@ -56,16 +57,13 @@ void Gameboy::timer_tick(int cycles)
 	}
 }
 
-void Gameboy::handle_input(uint8_t joypad)
+void Gameboy::handle_input(std::array<uint8_t, 2> jp)
 {
-	std::lock_guard<std::mutex> lg(mutex);
-	//mmu.write_byte(P1, joypad);
-	uint8_t pad = mmu.get_register(P1);
-	bitmask_clear(pad, 0x0F);
-	bitmask_set(pad, joypad);
-	mmu.set_register(P1, pad);
+	//std::lock_guard<std::mutex> lg(mutex);
+	// update our internal joypad
+	joypad = jp;
 	// only request joypad int if there's a button pressed
-	if (joypad < 0x0F) {
+	if (joypad[0] < 0x0F || joypad[1] < 0x0F)  {
 		uint8_t int_flag = mmu.read_byte(IF);
 		// bit 4 is joypad interrupt request - remove magic number usage here
 		// #TODO
@@ -74,7 +72,7 @@ void Gameboy::handle_input(uint8_t joypad)
 	}
 }
 
-void Gameboy::tick(int ticks)
+int Gameboy::tick(int ticks)
 {
 	// std::lock_guard<std::mutex> lg(mutex);
 	// A vertical refresh happens every 70224 clocks(140448 in GBC double speed mode) : 59, 7275 Hz
@@ -88,4 +86,5 @@ void Gameboy::tick(int ticks)
 		curr_screen_cycles += cpu.cycles;
 	}
 	curr_screen_cycles = 0;
+	return cpu.cycles;
 }

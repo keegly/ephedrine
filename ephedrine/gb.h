@@ -25,6 +25,7 @@ constexpr uint16_t SCY  = 0xFF42;
 constexpr uint16_t SCX  = 0xFF43;
 constexpr uint16_t LY   = 0xFF44;
 constexpr uint16_t LYC	= 0xFF45;
+constexpr uint16_t DMA  = 0xFF46;
 constexpr uint16_t BGP  = 0xFF47;
 constexpr uint16_t OBP0 = 0xFF48;
 constexpr uint16_t OBP1 = 0xFF49;
@@ -44,8 +45,8 @@ class Gameboy
 		Gameboy(std::vector<uint8_t> cart);
 		void reset();
 		void handle_interrupts();
-		void handle_input(uint8_t joypad);
-		void tick(int ticks);
+		void handle_input(std::array<uint8_t, 2> joypad);
+		int tick(int ticks);
 		void tick_until(uint16_t pc);
 		void load(std::vector<uint8_t> cart);
 		static void set_timer(uint16_t t) { divider = t; }
@@ -55,6 +56,7 @@ class Gameboy
 		MMU mmu;
 		PPU ppu;
 		const int max_cycles = 70224;
+		static std::array<uint8_t, 2> joypad;
 	private:
 		// a vert refresh after this many cycles
 		int curr_screen_cycles = 0;

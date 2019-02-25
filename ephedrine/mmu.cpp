@@ -79,8 +79,10 @@ uint8_t MMU::read_byte(uint16_t loc)
 		return cart_rom_banks[active_rom_bank][loc - 0x4000];
 	}*/
 	// joypad bits 6 and 7 always return 1
-	if (loc == 0xFF00) {
+	if (loc == P1) {
+		//uint8_t temp = memory[loc];
 		bitmask_set(memory[loc], 0xC0); // should be C0
+		//spdlog::get("stdout")->debug("Read from P1: prev {0:02x} curr {1:02x}", temp, memory[loc]);
 	}
 	//if (loc == 0xFF80)
 //		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
@@ -152,15 +154,36 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		// TODO: disallow writing to oam  (0xFE00 - 0xFE9F) unless in modes 0 - 1
 		// ^^ unless display is disabled
 		// Joypad writes (for button/direction selection only change bits 4/5)
-	if (loc == 0xFF00) {
-		bitmask_clear(memory[loc], 0x30);
-		bitmask_set(memory[loc], val & 0x30);
-		//val = memory[loc] | val;
+	if (loc == P1) {
+		spdlog::get("stdout")->debug("write to P1: {0:02x}", val);
+		// clear the 2 selection bits
+		//bitmask_clear(memory[loc], 0x30);
+		bitmask_set(memory[loc], val);
+		switch ((val >> 4) & 0x03) {
+		case 0x01:
+			// start, sel, a, b selected
+			bitmask_clear(memory[loc], 0x0f);
+			bitmask_set(memory[loc], Gameboy::joypad[0] & 0xf);
+			break;
+		case 0x02:
+			// direction pad
+			bitmask_clear(memory[loc], 0x0f);
+			bitmask_set(memory[loc], Gameboy::joypad[1] & 0xf);
+			break;
+		case 0x03:
+			// any button?
+			bitmask_clear(memory[loc], 0x0f);
+			bitmask_set(memory[loc], (Gameboy::joypad[0] | Gameboy::joypad[1]) & 0xf);
+			break;
+		default:
+			spdlog::get("stdout")->debug("Incorrect value in P1: {0:02x}", val);
+			break;
+		}
 		return;
 	}
 
 	// OAM Data Transfer
-	if (loc == 0xFF46) {
+	if (loc == DMA) {
 		// val is the MSB of our source xfer address
 		uint16_t src = val << 8;
 		// bottom of OEM Ram
