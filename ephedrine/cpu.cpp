@@ -1716,7 +1716,6 @@ uint8_t CPU::step()
 		default:
 			//printf("Unknown opcode: 0x%0.2X 0x%0.2X\n", opcode, opcode2);
 			spdlog::get("stdout")->error("Unknown opcode 0x{0:02X} 0x{1:02X} at 0x{2:04X}", (uint8_t)opcode, (uint8_t)mmu.read_byte(pc + 1), pc);
-			halted = true;
 			break;
 		}
 		break;
@@ -3919,7 +3918,7 @@ uint8_t CPU::step()
 		if ((registers.a & 0x0F) > 0x09)
 			flags.n ? registers.a -= 0x06 : registers.a += 0x06;
 		// #TODO: carry stuff
-		throw;
+		//throw;
 		++pc;
 		cycles = 4;
 		break;
@@ -3962,14 +3961,27 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::halt:
+	{
 		// suspend and wait for interrupts
 		// #TODO - Fix / Actually implement
-		//if (!ime) ++pc; //act as a nop if interrupts are disabled
+		halted = true;
+		uint8_t ie = mmu.read_byte(IE);
+		uint8_t int_flag = mmu.read_byte(IF);
+		// enter halt mode normally
+		if (ime && ((ie & int_flag & 0x1f) != 0)) {
+			halted = false;
+			// push address of next instruction to the stack in interrupt handler
+			++pc;
+			handle_interrupts();
+		}
+		else if (!ime && ((ie & int_flag & 0x1f) == 0)) {
+			// 
+		}
 		cycles = 4;
 		break;
+	}
 	default:
 		spdlog::get("stdout")->error("Unknown opcode 0x{0:02x} at PC 0x{1:04x}", (uint8_t)opcode, pc);
-		halted = true;
 		//printf("Unknown opcode 0x%0.2X at PC 0x%0.4X\n", opcode, pc);
 		//std::cerr << "Unknown Opcode: " << std::hex << opcode << std::dec << std::endl;
 		break;
@@ -3978,7 +3990,7 @@ uint8_t CPU::step()
 	return (uint8_t)opcode;
 }
 
-inline void CPU::rlc(uint8_t &reg)
+constexpr void CPU::rlc(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
 	reg <<= 1;

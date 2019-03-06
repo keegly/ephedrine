@@ -72,9 +72,12 @@ int main(int argc, char** argv) {
 	// PPU testing
 	//std::ifstream in("../opus5.gb", std::ios::binary);
 	//std::ifstream in("../tellinglys.gb", std::ios::binary);
-	std::ifstream in("../tetris.gb", std::ios::binary);
+	//std::ifstream in("../tetris.gb", std::ios::binary);
 	//std::ifstream in("../Dr. Mario.gb", std::ios::binary);
+	std::ifstream in("../Super Mario Land 2 - 6 Golden Coins.gb", std::ios::binary);
+	//std::ifstream in("../Super_Mario_Land.gb", std::ios::binary);
 	//std::ifstream in("../Pokemon - Blue Version.gb", std::ios::binary);
+	//std::ifstream in("../Legend_of_Zelda,_The_-_Link's_Awakening.gb", std::ios::binary);
 	in.seekg(0, std::ios::end);
 	auto sz = in.tellg();
 	assert(sz != -1);
@@ -95,12 +98,6 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	/*SDL_Window *bgmap = SDL_CreateWindow("BG Map", 300, 550, 256, 256, SDL_WINDOW_HIDDEN);
-	SDL_Renderer *bgren = SDL_CreateRenderer(bgmap, -1, SDL_RENDERER_ACCELERATED);
-
-	SDL_Window *tilewin = SDL_CreateWindow("Tiles", 256, 256, 128 * 2, 128 * 2, SDL_WINDOW_HIDDEN);
-	SDL_Renderer *tileren = SDL_CreateRenderer(tilewin, -1, SDL_RENDERER_ACCELERATED);*/
-
 	SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 	if (ren == nullptr) {
 		std::cout << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
@@ -109,14 +106,8 @@ int main(int argc, char** argv) {
 
 	SDL_SetRenderDrawColor(ren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(ren);
-	/*SDL_SetRenderDrawColor(bgren, 0, 0, 0, SDL_ALPHA_OPAQUE);
-	SDL_RenderClear(bgren);
-	SDL_SetRenderDrawColor(tileren, 0, 0, 0, SDL_ALPHA_OPAQUE);
-	SDL_RenderClear(tileren);*/
 
 	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 160, 144);
-	//SDL_Texture *bgtex = SDL_CreateTexture(bgren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 256, 256);
-	//SDL_Texture *tiletex = SDL_CreateTexture(tileren, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STATIC, 128, 128);
 
 	SDL_Window *window = SDL_CreateWindow("Imgui", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 	SDL_GLContext gl_context = SDL_GL_CreateContext(window);
@@ -133,16 +124,19 @@ int main(int argc, char** argv) {
 	// A vertical refresh happens every 70224 cycles (17556 clocks) (140448 in GBC double speed mode): 59,7275 Hz
 	constexpr auto tickrate = 16.7427ms;
 	SDL_Event event;
+	int cycles = 0;
 	CPU* curr_state = nullptr;
-	bool running = false;
+	bool running = true;
 	bool bg_enabled = false;
 	uint8_t mask = 0x0F;
+	std::array<uint8_t, 2> joypad = { 0xf, 0xf };
 	Registers reg_state;
 	Flags flag_state;
 	while (!quit) {
 		auto start = std::chrono::high_resolution_clock::now();
-		if (running)
-			gb->tick(gb->max_cycles); // one full screen refresh worth of cycles
+		if (running) {
+				cycles += gb->tick(gb->max_cycles); // one full screen refresh worth of cycles
+		}
 
 		while (SDL_PollEvent(&event))
 		{
@@ -166,28 +160,28 @@ int main(int argc, char** argv) {
 					break;
 				case SDLK_z:
 					//mask |= INPUT_A;
-					bitmask_clear(mask, INPUT_A);
+					bitmask_clear(joypad[0], INPUT_A);
 					break;
 				case SDLK_x:
-					bitmask_clear(mask, INPUT_B);
+					bitmask_clear(joypad[0], INPUT_B);
 					break;
 				case SDLK_DOWN:
-					bitmask_clear(mask, INPUT_DOWN);
+					bitmask_clear(joypad[1], INPUT_DOWN);
 					break;
 				case SDLK_UP:
-					bitmask_clear(mask, INPUT_UP);
+					bitmask_clear(joypad[1], INPUT_UP);
 					break;
 				case SDLK_LEFT:
-					bitmask_clear(mask, INPUT_LEFT);
+					bitmask_clear(joypad[1], INPUT_LEFT);
 					break;
 				case SDLK_RIGHT:
-					bitmask_clear(mask, INPUT_RIGHT);
+					bitmask_clear(joypad[1], INPUT_RIGHT);
 					break;
 				case SDLK_RETURN:
-					bitmask_clear(mask, INPUT_START);
+					bitmask_clear(joypad[0], INPUT_START);
 					break;
 				case SDLK_RSHIFT:
-					bitmask_clear(mask, INPUT_SELECT);
+					bitmask_clear(joypad[0], INPUT_SELECT);
 					break;
 				default:
 					break;
@@ -198,28 +192,28 @@ int main(int argc, char** argv) {
 				{
 				case SDLK_z:
 					//mask |= INPUT_A;
-					bitmask_set(mask, INPUT_A);
+					bitmask_set(joypad[0], INPUT_A);
 					break;
 				case SDLK_x:
-					bitmask_set(mask, INPUT_B);
+					bitmask_set(joypad[0], INPUT_B);
 					break;
 				case SDLK_DOWN:
-					bitmask_set(mask, INPUT_DOWN);
+					bitmask_set(joypad[1], INPUT_DOWN);
 					break;
 				case SDLK_UP:
-					bitmask_set(mask, INPUT_UP);
+					bitmask_set(joypad[1], INPUT_UP);
 					break;
 				case SDLK_LEFT:
-					bitmask_set(mask, INPUT_LEFT);
+					bitmask_set(joypad[1], INPUT_LEFT);
 					break;
 				case SDLK_RIGHT:
-					bitmask_set(mask, INPUT_RIGHT);
+					bitmask_set(joypad[1], INPUT_RIGHT);
 					break;
 				case SDLK_RETURN:
-					bitmask_set(mask, INPUT_START);
+					bitmask_set(joypad[0], INPUT_START);
 					break;
 				case SDLK_RSHIFT:
-					bitmask_set(mask, INPUT_SELECT);
+					bitmask_set(joypad[0], INPUT_SELECT);
 					break;
 				default:
 					break;
@@ -230,8 +224,7 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		gb->handle_input(mask);
-
+		gb->handle_input(joypad);
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL2_NewFrame(window);
 		ImGui::NewFrame();
@@ -293,6 +286,7 @@ int main(int argc, char** argv) {
 
 		ImGui::End();
 
+		auto bg_map = gb->ppu.render_bg();
 		if (ImGui::Begin("BG Map")) {
 			GLuint bg_tex;
 			glGenTextures(1, &bg_tex);
@@ -300,10 +294,13 @@ int main(int argc, char** argv) {
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, gb->ppu.render_bg().get());
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_map.get());
 			ImGui::Image((void *)bg_tex, ImVec2(256, 256));
+			auto pos = ImGui::GetWindowPos();
+			//ImGui::GetWindowDrawList()->AddRect(ImVec2(pos.x + gb->mmu.get_register(SCX), pos.y + gb->mmu.get_register(SCY)), ImVec2(pos.x + 160, pos.y + 144), IM_COL32(255, 0, 0, 255));
 		}
 		ImGui::End();
+
 		if (ImGui::Begin("Tile Map")) {
 			GLuint tile_tex;
 			glGenTextures(1, &tile_tex);
@@ -334,18 +331,6 @@ int main(int argc, char** argv) {
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
 
-		/*auto bg = gb->ppu.render_bg();
-		SDL_UpdateTexture(bgtex, nullptr, bg.get(), 256 * 3);
-		SDL_RenderClear(bgren);
-		SDL_RenderCopy(bgren, bgtex, nullptr, nullptr);
-		SDL_RenderPresent(bgren);
-
-		auto tiles = gb->ppu.render_tiles();
-		SDL_UpdateTexture(tiletex, nullptr, tiles.get(), 128 * 3);
-		SDL_RenderClear(tileren);
-		SDL_RenderCopy(tileren, tiletex, nullptr, nullptr);
-		SDL_RenderPresent(tileren);*/
-
 		auto end = std::chrono::high_resolution_clock::now();
 		auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -371,13 +356,6 @@ int main(int argc, char** argv) {
 	SDL_DestroyRenderer(ren);
 	SDL_DestroyTexture(tex);
 
-	/*SDL_DestroyWindow(bgmap);
-	SDL_DestroyRenderer(bgren);
-	SDL_DestroyTexture(bgtex);
-
-	SDL_DestroyWindow(tilewin);
-	SDL_DestroyRenderer(tileren);
-	SDL_DestroyTexture(tiletex);*/
 	SDL_Quit();
 
 	return 0;

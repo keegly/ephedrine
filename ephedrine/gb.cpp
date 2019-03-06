@@ -80,7 +80,10 @@ int Gameboy::tick(int ticks)
 		// step x ticks
 		cpu.step();
 		//handle interrupts
-		cpu.handle_interrupts();
+		// if we're on the HALT opcode, need to handle interrupts
+		// a little differently
+		if (!cpu.halted)
+			cpu.handle_interrupts();
 		timer_tick(cpu.cycles);
 		ppu.update(cpu.cycles);
 		curr_screen_cycles += cpu.cycles;

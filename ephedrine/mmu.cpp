@@ -80,9 +80,14 @@ uint8_t MMU::read_byte(uint16_t loc)
 	}*/
 	// joypad bits 6 and 7 always return 1
 	if (loc == P1) {
-		//uint8_t temp = memory[loc];
 		bitmask_set(memory[loc], 0xC0); // should be C0
-		//spdlog::get("stdout")->debug("Read from P1: prev {0:02x} curr {1:02x}", temp, memory[loc]);
+	}
+	//bit 7 unused and always returns 1, bits 0-2 return 0 when LCD is off
+	if (loc == STAT) {
+		bitmask_set(memory[loc], 0x80);
+		if (!bit_check(LCDC, 7)) {
+			bitmask_clear(memory[loc], 0x03);
+		}
 	}
 	//if (loc == 0xFF80)
 //		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
@@ -102,11 +107,11 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 
 	// writes here set the lower 5 bits of the ROM bank
 	if (loc >= 0x2000 && loc <= 0x3FFF && rom_banks > 2) {
-		spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}", loc, val);
+		//spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}", loc, val);
 		if (val == 0 || val == 20 || val == 40 || val == 60) ++val;
 
 		active_rom_bank = val % rom_banks;
-		spdlog::get("stdout")->debug("selecting rom bank {0}", active_rom_bank);
+		//spdlog::get("stdout")->debug("selecting rom bank {0}", active_rom_bank);
 		for (int i = 0; i < 0x4000; ++i) {
 			memory[0x4000 + i] = cart_rom_banks[val % rom_banks][i];
 		}
@@ -155,7 +160,7 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		// ^^ unless display is disabled
 		// Joypad writes (for button/direction selection only change bits 4/5)
 	if (loc == P1) {
-		spdlog::get("stdout")->debug("write to P1: {0:02x}", val);
+		//spdlog::get("stdout")->debug("write to P1: {0:02x}", val);
 		// clear the 2 selection bits
 		//bitmask_clear(memory[loc], 0x30);
 		bitmask_set(memory[loc], val);
@@ -176,7 +181,7 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 			bitmask_set(memory[loc], (Gameboy::joypad[0] | Gameboy::joypad[1]) & 0xf);
 			break;
 		default:
-			spdlog::get("stdout")->debug("Incorrect value in P1: {0:02x}", val);
+			spdlog::get("stdout")->error("Incorrect value in P1: {0:02x}", val);
 			break;
 		}
 		return;
