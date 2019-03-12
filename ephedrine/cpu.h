@@ -50,7 +50,7 @@ public:
 	// fetch decode execute
 	// talk to mmu for memory access
 	// returns previous opcode
-	CPU(MMU &mmu);
+	CPU(std::shared_ptr<MMU> m);
 	uint8_t step();
 	void handle_interrupts();
 	int cycles;
@@ -599,7 +599,8 @@ private:
 	uint16_t sp;
 	uint16_t pc;
 	bool ime;
-	MMU &mmu;
+//	MMU &mmu;
+	std::shared_ptr<MMU> mmu;
 
 	bool halt_bug_occurred = false;
 

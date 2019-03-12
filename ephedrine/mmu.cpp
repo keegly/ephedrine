@@ -220,7 +220,8 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 //if (loc == 0xFF80)
 	//spdlog::get("stdout")->debug("FF80 write: {0:02X}", val);
 
-	memory[loc] = val;
+	memory.at(loc) = val;
+	//memory[loc] = val;
 }
 
 void MMU::set_register(uint16_t reg, uint8_t val)

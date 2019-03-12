@@ -18,12 +18,15 @@ class MMU {
 		uint16_t read_word(uint16_t loc);
 		void write_word(uint16_t loc, uint16_t val);
 		void set_ppu_mode(uint8_t mode);
+		size_t cart_sz() const {
+			return cartridge.size();
+		}
 		// total amount of 8kB memory banks we have
 		int rom_banks;
 		int ram_banks;
 		bool boot_rom_enabled;
 	private:
-		std::array<uint8_t, 0xFFFF> memory{};
+		std::array<uint8_t, 0x10000> memory{};
 		std::vector<uint8_t> cartridge{};
 		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks{};
 		uint8_t active_rom_bank;

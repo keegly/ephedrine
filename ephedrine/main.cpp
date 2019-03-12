@@ -85,8 +85,8 @@ int main(int argc, char** argv) {
 	cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
 	logger->info("cart size 0x{0:x} bytes", cart.size());
-	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
-	auto gb = std::make_shared<Gameboy>(cart);
+	std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
+	//auto gb = std::make_shared<Gameboy>(cart);
 
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
@@ -109,14 +109,14 @@ int main(int argc, char** argv) {
 
 	SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 160, 144);
 
-	SDL_Window *window = SDL_CreateWindow("Imgui", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+	/*SDL_Window *window = SDL_CreateWindow("Imgui", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 	SDL_GLContext gl_context = SDL_GL_CreateContext(window);
 	gl3wInit();
 
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
 	ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-	ImGui_ImplOpenGL3_Init("#version 410 core");
+	ImGui_ImplOpenGL3_Init("#version 410 core");*/
 
 	//std::thread gb_thread{ tick, std::ref(gb) };
 
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
 
 		while (SDL_PollEvent(&event))
 		{
-			ImGui_ImplSDL2_ProcessEvent(&event);
+			//ImGui_ImplSDL2_ProcessEvent(&event);
 			switch (event.type)
 			{
 			case SDL_QUIT || event.key.keysym.sym == SDLK_ESCAPE:
@@ -154,8 +154,8 @@ int main(int argc, char** argv) {
 					logger->info("Execution: {0}", running ? "resumed" : "paused");
 					break;
 				case SDLK_p:
-					gb->cpu.print();
-					gb->ppu.print();
+					gb->cpu->print();
+					gb->ppu->print();
 					//Logger::logger->debug("--------------------------------");
 					break;
 				case SDLK_z:
@@ -225,108 +225,108 @@ int main(int argc, char** argv) {
 		}
 
 		gb->handle_input(joypad);
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplSDL2_NewFrame(window);
-		ImGui::NewFrame();
+		//ImGui_ImplOpenGL3_NewFrame();
+		//ImGui_ImplSDL2_NewFrame(window);
+		//ImGui::NewFrame();
 
-		ImGui::Begin("Debug");
-		//auto sprites = gb->ppu.get_visible_sprites();
-		//std::stringstream str{};
-		//str << gb->ppu;
-		reg_state = gb->cpu.get_registers();
-		flag_state = gb->cpu.get_flags();
-		//ImGui::Text("%s", str.str().data());
-		ImGui::Text("Joypad Register status: 0x%.2x", gb->mmu.read_byte(P1));
-		ImGui::Text("IF Reg: 0x%0.2x", gb->mmu.get_register(IF));
-		ImGui::Text("IE Reg: 0x%0.2x", gb->mmu.get_register(IE));
-		ImGui::Text("LCD Registers: LCDC: 0x%0.2x STAT: 0x%0.2x LY: %u LYC: %u",
-			gb->mmu.get_register(LCDC), gb->mmu.get_register(STAT),
-			gb->mmu.get_register(LY), gb->mmu.get_register(LYC));
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-		ImGui::Columns(2, "register_columns", true);
-		ImGui::Separator();
-		ImGui::Text("AF= 0x%0.4X", reg_state.af);
-		ImGui::Text("BC= 0x%0.4X", reg_state.bc);
-		ImGui::Text("DE= 0x%0.4X", reg_state.de);
-		ImGui::Text("HL= 0x%0.4X", reg_state.hl);
-		ImGui::Text("PC= 0x%0.4X", gb->cpu.get_pc());
-		ImGui::Text("SP= 0x%0.4X", gb->cpu.get_sp());
-		ImGui::Checkbox("z", &flag_state.z);
-		ImGui::SameLine();
-		ImGui::Checkbox("n", &flag_state.n);
-		ImGui::SameLine();
-		ImGui::Checkbox("h", &flag_state.h);
-		ImGui::SameLine();
-		ImGui::Checkbox("c", &flag_state.c);
-		/*for (Sprite &s : sprites) {
-			ImGui::Text("Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X", s.y, s.x, s.tile, s.flags);
-		}*/
-		ImGui::NextColumn();
-		ImGui::Text("lcdc= 0x%0.2X", gb->mmu.get_register(LCDC));
-		ImGui::Text("stat= 0x%0.2X", gb->mmu.get_register(STAT));
-		ImGui::Text("ly= 0x%0.2X", gb->mmu.get_register(LY));
-		ImGui::Text("IE: 0x%0.2x", gb->mmu.get_register(IE));
-		ImGui::Text("IF: 0x%0.2x", gb->mmu.get_register(IF));
-		ImGui::Checkbox("running", &running);
-		ImGui::SameLine();
-		if (ImGui::Button("Step"))
-			gb->tick(1);
-		if (ImGui::Button("Step 1/4 frame"))
-			gb->tick(gb->max_cycles/4);
-		if (ImGui::Button("Step 1 frame"))
-			gb->tick(gb->max_cycles);
-		if (ImGui::Button("Step until Z")) {
-			bool z = false;
-			while (!z) {
-				gb->tick(1);
-				flag_state = gb->cpu.get_flags();
-				z = flag_state.z;
-			}
-		}
-
-		ImGui::End();
-
-		auto bg_map = gb->ppu.render_bg();
-		if (ImGui::Begin("BG Map")) {
-			GLuint bg_tex;
-			glGenTextures(1, &bg_tex);
-			glBindTexture(GL_TEXTURE_2D, bg_tex);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_map.get());
-			ImGui::Image((void *)bg_tex, ImVec2(256, 256));
-			auto pos = ImGui::GetWindowPos();
-			//ImGui::GetWindowDrawList()->AddRect(ImVec2(pos.x + gb->mmu.get_register(SCX), pos.y + gb->mmu.get_register(SCY)), ImVec2(pos.x + 160, pos.y + 144), IM_COL32(255, 0, 0, 255));
-		}
-		ImGui::End();
-
-		if (ImGui::Begin("Tile Map")) {
-			GLuint tile_tex;
-			glGenTextures(1, &tile_tex);
-			glBindTexture(GL_TEXTURE_2D, tile_tex);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, gb->ppu.render_tiles().get());
-			ImGui::Image((void *)tile_tex, ImVec2(128*2, 256*2));
-		}
-		ImGui::End();
-
-		ImGui::Render();
-		SDL_GL_MakeCurrent(window, gl_context);
-		glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
-		glClearColor(0, 0, 0, 0);
-		glClear(GL_COLOR_BUFFER_BIT);
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-		SDL_GL_SwapWindow(window);
-		// enable interrupts after instruction AFTER the EI instruction :S
-		//if (gb.get_prev_opcode() == 0xFA) { // EI TODO: add support for RETI instruction?
-		//	gb.enable_interrupt();
+		//ImGui::Begin("Debug");
+		////auto sprites = gb->ppu.get_visible_sprites();
+		////std::stringstream str{};
+		////str << gb->ppu;
+		//reg_state = gb->cpu.get_registers();
+		//flag_state = gb->cpu.get_flags();
+		////ImGui::Text("%s", str.str().data());
+		//ImGui::Text("Joypad Register status: 0x%.2x", gb->mmu.read_byte(P1));
+		//ImGui::Text("IF Reg: 0x%0.2x", gb->mmu.get_register(IF));
+		//ImGui::Text("IE Reg: 0x%0.2x", gb->mmu.get_register(IE));
+		//ImGui::Text("LCD Registers: LCDC: 0x%0.2x STAT: 0x%0.2x LY: %u LYC: %u",
+		//	gb->mmu.get_register(LCDC), gb->mmu.get_register(STAT),
+		//	gb->mmu.get_register(LY), gb->mmu.get_register(LYC));
+		//ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		//ImGui::Columns(2, "register_columns", true);
+		//ImGui::Separator();
+		//ImGui::Text("AF= 0x%0.4X", reg_state.af);
+		//ImGui::Text("BC= 0x%0.4X", reg_state.bc);
+		//ImGui::Text("DE= 0x%0.4X", reg_state.de);
+		//ImGui::Text("HL= 0x%0.4X", reg_state.hl);
+		//ImGui::Text("PC= 0x%0.4X", gb->cpu.get_pc());
+		//ImGui::Text("SP= 0x%0.4X", gb->cpu.get_sp());
+		//ImGui::Checkbox("z", &flag_state.z);
+		//ImGui::SameLine();
+		//ImGui::Checkbox("n", &flag_state.n);
+		//ImGui::SameLine();
+		//ImGui::Checkbox("h", &flag_state.h);
+		//ImGui::SameLine();
+		//ImGui::Checkbox("c", &flag_state.c);
+		///*for (Sprite &s : sprites) {
+		//	ImGui::Text("Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X", s.y, s.x, s.tile, s.flags);
+		//}*/
+		//ImGui::NextColumn();
+		//ImGui::Text("lcdc= 0x%0.2X", gb->mmu.get_register(LCDC));
+		//ImGui::Text("stat= 0x%0.2X", gb->mmu.get_register(STAT));
+		//ImGui::Text("ly= 0x%0.2X", gb->mmu.get_register(LY));
+		//ImGui::Text("IE: 0x%0.2x", gb->mmu.get_register(IE));
+		//ImGui::Text("IF: 0x%0.2x", gb->mmu.get_register(IF));
+		//ImGui::Checkbox("running", &running);
+		//ImGui::SameLine();
+		//if (ImGui::Button("Step"))
+		//	gb->tick(1);
+		//if (ImGui::Button("Step 1/4 frame"))
+		//	gb->tick(gb->max_cycles/4);
+		//if (ImGui::Button("Step 1 frame"))
+		//	gb->tick(gb->max_cycles);
+		//if (ImGui::Button("Step until Z")) {
+		//	bool z = false;
+		//	while (!z) {
+		//		gb->tick(1);
+		//		flag_state = gb->cpu.get_flags();
+		//		z = flag_state.z;
+		//	}
 		//}
 
+		//ImGui::End();
+
+		//auto bg_map = gb->ppu.render_bg();
+		//if (ImGui::Begin("BG Map")) {
+		//	GLuint bg_tex;
+		//	glGenTextures(1, &bg_tex);
+		//	glBindTexture(GL_TEXTURE_2D, bg_tex);
+		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		//	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+		//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 256, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, bg_map.get());
+		//	ImGui::Image((void *)bg_tex, ImVec2(256, 256));
+		//	auto pos = ImGui::GetWindowPos();
+		//	//ImGui::GetWindowDrawList()->AddRect(ImVec2(pos.x + gb->mmu.get_register(SCX), pos.y + gb->mmu.get_register(SCY)), ImVec2(pos.x + 160, pos.y + 144), IM_COL32(255, 0, 0, 255));
+		//}
+		//ImGui::End();
+
+		//if (ImGui::Begin("Tile Map")) {
+		//	GLuint tile_tex;
+		//	glGenTextures(1, &tile_tex);
+		//	glBindTexture(GL_TEXTURE_2D, tile_tex);
+		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		//	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+		//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 256, 0, GL_RGBA, GL_UNSIGNED_BYTE, gb->ppu.render_tiles().get());
+		//	ImGui::Image((void *)tile_tex, ImVec2(128*2, 256*2));
+		//}
+		//ImGui::End();
+
+		//ImGui::Render();
+		//SDL_GL_MakeCurrent(window, gl_context);
+		//glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
+		//glClearColor(0, 0, 0, 0);
+		//glClear(GL_COLOR_BUFFER_BIT);
+		//ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		//SDL_GL_SwapWindow(window);
+		//// enable interrupts after instruction AFTER the EI instruction :S
+		////if (gb.get_prev_opcode() == 0xFA) { // EI TODO: add support for RETI instruction?
+		////	gb.enable_interrupt();
+		////}
+
 		//auto pixels = gb->ppu.render().get();
-		SDL_UpdateTexture(tex, nullptr, gb->ppu.render().get(), 160 * 4);
+		SDL_UpdateTexture(tex, nullptr, gb->ppu->render().get(), 160 * 4);
 		SDL_RenderClear(ren);
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
@@ -345,12 +345,12 @@ int main(int argc, char** argv) {
 	}
 
 //	gb_thread.join();
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplSDL2_Shutdown();
-	ImGui::DestroyContext();
+	//ImGui_ImplOpenGL3_Shutdown();
+	//ImGui_ImplSDL2_Shutdown();
+	//ImGui::DestroyContext();
 
-	SDL_GL_DeleteContext(gl_context);
-	SDL_DestroyWindow(window);
+	//SDL_GL_DeleteContext(gl_context);
+	//SDL_DestroyWindow(window);
 
 	SDL_DestroyWindow(win);
 	SDL_DestroyRenderer(ren);

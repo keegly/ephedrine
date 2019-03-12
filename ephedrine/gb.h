@@ -54,9 +54,10 @@ class Gameboy
 		static void set_timer(uint16_t t) { divider = t; }
 		uint16_t get_timer() { return divider; }
 		void timer_tick(int cycles);
-		CPU cpu;
-		MMU mmu;
-		PPU ppu;
+		std::shared_ptr<CPU> cpu;
+		std::shared_ptr<MMU> mmu;
+		std::shared_ptr<PPU> ppu;
+		//PPU ppu;
 		const int max_cycles = 70224;
 		static std::array<uint8_t, 2> joypad;
 		void save_state();

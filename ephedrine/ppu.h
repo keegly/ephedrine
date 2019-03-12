@@ -47,7 +47,7 @@ struct PixelFIFO {
 
 class PPU {
 public:
-	PPU(MMU& m);
+	PPU(std::shared_ptr<MMU> m);
 	bool vblank;
 	void update(int cycles);
 	std::unique_ptr<uint8_t[]> render() const;
@@ -66,7 +66,7 @@ public:
 		return os;
 	}
 private:
-	MMU& mmu;
+	std::shared_ptr<MMU> mmu;
 	Pixel pixels[144][160]; // 160x144 screen, 4 bytes per pixel
 	Pixel get_color(uint8_t tile) const;
 	Pixel get_sprite_color(uint8_t tile, bool obp1);

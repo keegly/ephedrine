@@ -9,8 +9,9 @@
 #include "instructions.h"
 #include "spdlog/spdlog.h"
 
-CPU::CPU(MMU &m) : mmu(m), pc(0x0100), sp(0xFFFE)
+CPU::CPU(std::shared_ptr<MMU> m) : mmu(m), pc(0x0100), sp(0xFFFE)
 {
+	assert(m != nullptr);
 	registers.af = 0x01B0;
 	registers.bc = 0x0013;
 	registers.de = 0x00D8;
@@ -29,8 +30,8 @@ void CPU::print()
 
 void CPU::handle_interrupts()
 {
-	uint8_t if_reg = mmu.read_byte(IF);
-	uint8_t ie_reg = mmu.read_byte(IE);
+	uint8_t if_reg = mmu->read_byte(IF);
+	uint8_t ie_reg = mmu->read_byte(IE);
 
 	if (!ime || (if_reg & 0x1F) == 0 || (ie_reg & 0x1F) == 0)
 		return; // interrupts globally disabled or nothing to handle
@@ -41,12 +42,12 @@ void CPU::handle_interrupts()
 		if (bit_check(if_reg, i) && bit_check(ie_reg, i))  {
 			// put current pc on stack and head to the proper service routine
 			////spdlog::get("stdout")->debug("int handler: {0:04X}, jumping from {1:04x}", offset[i], pc);
-			mmu.write_byte(--sp, pc >> 8);
-			mmu.write_byte(--sp, static_cast<uint8_t>(pc));
+			mmu->write_byte(--sp, pc >> 8);
+			mmu->write_byte(--sp, static_cast<uint8_t>(pc));
 			pc = offset[i];
 			// clear teh bit
 			bit_clear(if_reg, i);
-			mmu.write_byte(IF, if_reg);
+			mmu->write_byte(IF, if_reg);
 			return;
 		}
 	}
@@ -54,150 +55,8 @@ void CPU::handle_interrupts()
 
 uint8_t CPU::step()
 {
-	//  2a3 all was fine
-	//if (pc == 0x29a6)
-	//if (pc == 0xc003)
-	//	Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);
-	/*if (pc > 0x023e)
-		Logger::logger->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
-	/** Tetris - 0x027A is where we're overwriting the bg with 0th tile
-						all the way from 9FFF (bottom of background) to 7fff (before top of tile map)
-	 * 0x02c4 -> call 29A6 / checks the joypad for inputs and returns
-	   0x02c7 -> call 02F8
-					ld a, ffe1
-					rst 28
-					add a
-					pop hl -> pops the return address (02FB) and puts in hl
-					ld e, a
-					ld d, 0
-					add hl, de
-					ld e, (hl)
-					inc hl
-					ld d, hl
-					push de
-					pop hl
-					jp hl (0369)
-					call 2820 / sets up interrupts and lcd
-					ld a, ff0f ;int enable
-					ld ffa1, a
-					res 0,a
-					ld ffff, a ; int enable
-					ld a, ff44 ; LY <-
-					cp a, 91         |
-					jr nz, 2828  ----^
-					ld a, ff40 ; lcd ctrl
-					and a, 7f	- disables lcd ( bit 7 off)
-					ld ff40, a ; lcd ctrl
-					ld a, ffa1
-					ld ffff, a  ; int enable
-					ret / returns to 036c
-					call 27d7
-					call 27c3 / loads the splash tiles into memory (letters only)
-					ld hl, 415f
-					ld bc, 0138
-					ld de, 8000
-					ldi a, (hl) <--
-					ld (de), a    |
-					inc de        |
-					ld (de), a    |
-					inc de        |
-					dec bc        |
-					ld a, b       |
-					or c          |
-					jr nz, 27cc --^
-					ret  / finished loading splash tiles into memory
-					ld bc, 0da0 / 0x27da
-					call 27a4 / load the rest of the game tiles
-					ldi a, (hl) <--
-					ld (de), a    |
-					inc de        |
-					dec bc        |
-					ld a, b       |
-					or c          |
-					jr nz, 27a4 --^
-					ret / finished loading game tiles
-					ret 0x27e0
-					ret 0x036f
-					ld de, 4a07
-					call 27eb / load background map ?
-					ld hl, 9800
-					ld 2 , 12
-					push hl      <------
-					ld c, 14            |
-					ld a, (de)  <---    |
-					ldi (hl), a     |   |
-					inc de          |   |
-					dec c           |   |
-					jr nz, 27f3 ----^   |
-					pop hl              |
-					push de             |
-					ld de, 0020         |
-					add hl, de          |
-					pop de              |
-					dec b               |
-					jr nz 0x27f0    ----^
-					ret - 0x0375
-					call 178a
-					xor a
-					ld hl, c000
-					ld b, a0
-					ldi (hl), a  <--
-					dec b           |
-					jr nz, 1790  ---^
-					ret 0x0378
-					ld hl, c300
-					ld de, 6450
-					ld a, (de)  <--
-					ldi (hl), a    |
-					inc de         |
-					ld a, h        |
-					cp a, c4       |
-					jr nz, 037e   -^
-					ld a, d3
-					ld ff40, a ; lcd ctrl - enable lcd and BG, now visible.
-					ld a, FA
-		  0x038a -> ld ffa6, a
-					ld a, 25
-					ld ffe1, a
-					ret
-		  0x02ca -> call 7FF0
-					jp 64d3
-					push af
-					push bc
-					push de
-					push hl
-					ld a, (df7f)
-					cp a, 01
-					jr z, 6524
-					cp a, 02
-					jr z, 655d
-					...
-					call 64d2
-					ret			... ?
-					call 69dd
-					...
-					ret
-					call 69fd
-					ret
-					call 683c
-					...
-					ret
-					call 6a21
-					ld hl, df38
-					ldi a, (hl)
-					and a
-					ret z
-					call 6c44
-					...
-					ret z
-	 */
-	// this is just after the bg map should be shown for tetris
-	/*if (pc == 0x027c3 || pc == 0x27e0 || pc == 0x0386)
-		spdlog::get("stdout")->info("pc: {0:04X}, sp: {1:04X}", pc, sp);*/
 	//Instruction opcode;
-	if (pc == 0x29cc)
-		int i = 0;
-	auto opcode = (Instruction)mmu.read_byte(pc);
+	auto opcode = (Instruction)mmu->read_byte(pc);
 	//spdlog::get("file logger")->info("pc: {0:04X} - op: {1:02X}", pc, (uint8_t)opcode);
 	//spdlog::get("file logger")->trace("Registers: af:0x{0:04X} bc:0x{1:04X} de:0x{2:04X} hl:0x{3:04X}", registers.af, registers.bc, registers.de, registers.hl);
 	//spdlog::get("file logger")->trace("pc: 0x{0:04X} opcode: 0x{1:02X} sp: 0x{2:04X}", pc, (uint8_t)opcode, sp);
@@ -208,7 +67,7 @@ uint8_t CPU::step()
 	// CB prefixed opcodes
 	case Instruction::prefix_cb:
 	{
-		switch (Prefix_CB(mmu.read_byte(pc + 1))) {
+		switch (Prefix_CB(mmu->read_byte(pc + 1))) {
 		case Prefix_CB::rlc_b:
 			rlc(registers.b);
 			pc += 2;
@@ -241,9 +100,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::rlc_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			rlc(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -285,9 +144,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::rrc_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			rrc(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -329,9 +188,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::rl_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			rl(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -373,9 +232,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::rr_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			rr(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -417,9 +276,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::sla_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			sla(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -461,9 +320,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::sra_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			sra(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -505,9 +364,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::swap_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			swap(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -549,9 +408,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::srl_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			srl(val);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -604,7 +463,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 0);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 0);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -660,7 +519,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 1);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 1);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -716,7 +575,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 2);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 2);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -772,7 +631,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 3);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 3);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -828,7 +687,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 4);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 4);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -884,7 +743,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 5);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 5);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -940,7 +799,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 6);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 6);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -996,7 +855,7 @@ uint8_t CPU::step()
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_hl:
-			flags.z = !bit_check(mmu.read_byte(registers.hl), 7);
+			flags.z = !bit_check(mmu->read_byte(registers.hl), 7);
 			flags.n = false;
 			flags.h = true;
 			pc += 2;
@@ -1041,9 +900,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_0_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 0);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1085,9 +944,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_1_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 1);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1129,9 +988,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_2_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 2);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1173,9 +1032,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_3_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 3);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1217,9 +1076,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_4_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 4);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1261,9 +1120,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_5_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 5);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1305,9 +1164,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_6_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 6);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1349,9 +1208,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::res_7_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_clear(val, 7);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1393,9 +1252,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_0_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 0);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1437,9 +1296,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_1_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 1);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1481,9 +1340,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_2_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 2);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1525,9 +1384,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_3_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 3);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1569,9 +1428,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_4_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 4);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1613,9 +1472,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_5_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 5);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1657,9 +1516,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_6_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 6);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1701,9 +1560,9 @@ uint8_t CPU::step()
 			break;
 		case Prefix_CB::set_7_hl:
 		{
-			uint8_t val = mmu.read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers.hl);
 			bit_set(val, 7);
-			mmu.write_byte(registers.hl, val);
+			mmu->write_byte(registers.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
@@ -1715,7 +1574,7 @@ uint8_t CPU::step()
 			break;
 		default:
 			//printf("Unknown opcode: 0x%0.2X 0x%0.2X\n", opcode, opcode2);
-			spdlog::get("stdout")->error("Unknown opcode 0x{0:02X} 0x{1:02X} at 0x{2:04X}", (uint8_t)opcode, (uint8_t)mmu.read_byte(pc + 1), pc);
+			spdlog::get("stdout")->error("Unknown opcode 0x{0:02X} 0x{1:02X} at 0x{2:04X}", (uint8_t)opcode, (uint8_t)mmu->read_byte(pc + 1), pc);
 			break;
 		}
 		break;
@@ -1729,32 +1588,32 @@ uint8_t CPU::step()
 		break;
 		// 8 bit loads
 	case Instruction::ld_b_d8:
-		registers.b = mmu.read_byte(pc + 1);
+		registers.b = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_c_d8: // LD C,n
-		registers.c = mmu.read_byte(pc + 1);
+		registers.c = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_d_d8: // LD D,n
-		registers.d = mmu.read_byte(pc + 1);
+		registers.d = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_e_d8: // LD E,n
-		registers.e = mmu.read_byte(pc + 1);
+		registers.e = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_h_d8: // LD H,n
-		registers.h = mmu.read_byte(pc + 1);
+		registers.h = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_l_d8: // LD L,n
-		registers.l = mmu.read_byte(pc + 1);
+		registers.l = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
@@ -1795,24 +1654,24 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_a_bc:
-		registers.a = mmu.read_byte(registers.bc);
+		registers.a = mmu->read_byte(registers.bc);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_de:
-		registers.a = mmu.read_byte(registers.de);
+		registers.a = mmu->read_byte(registers.de);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_at_hl:
-		registers.a = mmu.read_byte(registers.hl);
+		registers.a = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_a16:
 	{
-		uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-		registers.a = mmu.read_byte(address);
+		uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+		registers.a = mmu->read_byte(address);
 		pc += 3;
 		cycles = 16;
 		break;
@@ -1853,7 +1712,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_b_hl:
-		registers.b = mmu.read_byte(registers.hl);
+		registers.b = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
@@ -1893,7 +1752,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_c_hl:
-		registers.c = mmu.read_byte(registers.hl);
+		registers.c = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
@@ -1933,7 +1792,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_d_hl:
-		registers.d = mmu.read_byte(registers.hl);
+		registers.d = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
@@ -1973,7 +1832,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_e_hl:
-		registers.e = mmu.read_byte(registers.hl);
+		registers.e = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
@@ -2013,7 +1872,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_h_hl:
-		registers.h = mmu.read_byte(registers.hl);
+		registers.h = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
@@ -2053,28 +1912,28 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::ld_l_hl:
-		registers.l = mmu.read_byte(registers.hl);
+		registers.l = mmu->read_byte(registers.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a16_a:
 	{
-		uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-		mmu.write_byte(address, registers.a);
+		uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+		mmu->write_byte(address, registers.a);
 		cycles = 16;
 		pc += 3;
 		break;
 	}
 	case Instruction::ldd_hl_a: // ld (HL-), A
 	{
-		mmu.write_byte(registers.hl, registers.a);
+		mmu->write_byte(registers.hl, registers.a);
 		--registers.hl;
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::ld_a_d8: // ld A, #
-		registers.a = mmu.read_byte(pc + 1);
+		registers.a = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
@@ -2082,126 +1941,126 @@ uint8_t CPU::step()
 	{
 		// TODO: check this
 		uint16_t address = 0xFF00 + registers.c;
-		mmu.write_byte(address, registers.a);
+		mmu->write_byte(address, registers.a);
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::ld_bc_a:
-		mmu.write_byte(registers.bc, registers.a);
+		mmu->write_byte(registers.bc, registers.a);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_de_a:
-		mmu.write_byte(registers.de, registers.a);
+		mmu->write_byte(registers.de, registers.a);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_a:
-		mmu.write_byte(registers.hl, registers.a);
+		mmu->write_byte(registers.hl, registers.a);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_b:
-		mmu.write_byte(registers.hl, registers.b);
+		mmu->write_byte(registers.hl, registers.b);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_c:
-		mmu.write_byte(registers.hl, registers.c);
+		mmu->write_byte(registers.hl, registers.c);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_d:
-		mmu.write_byte(registers.hl, registers.d);
+		mmu->write_byte(registers.hl, registers.d);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_e:
-		mmu.write_byte(registers.hl, registers.e);
+		mmu->write_byte(registers.hl, registers.e);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_h:
-		mmu.write_byte(registers.hl, registers.h);
+		mmu->write_byte(registers.hl, registers.h);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_l:
-		mmu.write_byte(registers.hl, registers.l);
+		mmu->write_byte(registers.hl, registers.l);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ldh_a8_a:
 	{
-		uint16_t address = 0xFF00 + mmu.read_byte(pc + 1);
-		mmu.write_byte(address, registers.a);
+		uint16_t address = 0xFF00 + mmu->read_byte(pc + 1);
+		mmu->write_byte(address, registers.a);
 		pc += 2;
 		cycles = 12;
 		break;
 	}
 	case Instruction::ldh_a_a8:
 	{
-		uint16_t address = 0xFF00 + mmu.read_byte(pc + 1);
-		registers.a = mmu.read_byte(address);
+		uint16_t address = 0xFF00 + mmu->read_byte(pc + 1);
+		registers.a = mmu->read_byte(address);
 		pc += 2;
 		cycles = 12;
 		break;
 	}
 	case Instruction::ldi_hl_a:
-		mmu.write_byte(registers.hl, registers.a);
+		mmu->write_byte(registers.hl, registers.a);
 		++registers.hl;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_d8:
 	{
-		uint8_t val = mmu.read_byte(pc + 1);
-		mmu.write_byte(registers.hl, val);
+		uint8_t val = mmu->read_byte(pc + 1);
+		mmu->write_byte(registers.hl, val);
 		pc += 2;
 		cycles = 12;
 		break;
 	}
 	case Instruction::ldi_a_hl:
-		registers.a = mmu.read_byte(registers.hl);
+		registers.a = mmu->read_byte(registers.hl);
 		++registers.hl;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ldd_a_hl:
-		registers.a = mmu.read_byte(registers.hl--);
+		registers.a = mmu->read_byte(registers.hl--);
 		++pc;
 		cycles = 8;
 		break;
 		// 16 bit loads
 	case Instruction::ld_a16_sp:
 	{
-		uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-		mmu.write_byte(address, static_cast<uint8_t>(sp));  // LSB
-		mmu.write_byte(address + 1, sp >> 8);				// MSB
+		uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+		mmu->write_byte(address, static_cast<uint8_t>(sp));  // LSB
+		mmu->write_byte(address + 1, sp >> 8);				// MSB
 		pc += 3;
 		cycles = 20;
 		break;
 	}
 	case Instruction::ld_sp_d16:
-		sp = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
+		sp = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
 	case Instruction::ld_bc_d16:
-		registers.bc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
+		registers.bc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
 	case Instruction::ld_hl_d16:
-		registers.h = mmu.read_byte(pc + 2);
-		registers.l = mmu.read_byte(pc + 1);
+		registers.h = mmu->read_byte(pc + 2);
+		registers.l = mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
 	case Instruction::ld_de_d16:
-		registers.d = mmu.read_byte(pc + 2);
-		registers.e = mmu.read_byte(pc + 1);
+		registers.d = mmu->read_byte(pc + 2);
+		registers.e = mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
@@ -2216,40 +2075,40 @@ uint8_t CPU::step()
 		bitmask_clear(registers.f, 0x0F);
 
 		sp -= 1;
-		mmu.write_byte(sp, registers.a);
+		mmu->write_byte(sp, registers.a);
 		sp -= 1;
-		mmu.write_byte(sp, registers.f);
+		mmu->write_byte(sp, registers.f);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_bc:
 		sp -= 1;
-		mmu.write_byte(sp, registers.b);
+		mmu->write_byte(sp, registers.b);
 		sp -= 1;
-		mmu.write_byte(sp, registers.c);
+		mmu->write_byte(sp, registers.c);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_de:
 		sp -= 1;
-		mmu.write_byte(sp, registers.d);
+		mmu->write_byte(sp, registers.d);
 		sp -= 1;
-		mmu.write_byte(sp, registers.e);
+		mmu->write_byte(sp, registers.e);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_hl:
 		sp -= 1;
-		mmu.write_byte(sp, registers.h);
+		mmu->write_byte(sp, registers.h);
 		sp -= 1;
-		mmu.write_byte(sp, registers.l);
+		mmu->write_byte(sp, registers.l);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::pop_af:
-		registers.f = mmu.read_byte(sp);
+		registers.f = mmu->read_byte(sp);
 		++sp;
-		registers.a = mmu.read_byte(sp);
+		registers.a = mmu->read_byte(sp);
 		++sp;
 		// reset our flags
 		bit_check(registers.f, 7) ? flags.z = true : flags.z = false;
@@ -2261,31 +2120,31 @@ uint8_t CPU::step()
 		cycles = 12;
 		break;
 	case Instruction::pop_bc:
-		registers.c = mmu.read_byte(sp);
+		registers.c = mmu->read_byte(sp);
 		++sp;
-		registers.b = mmu.read_byte(sp);
+		registers.b = mmu->read_byte(sp);
 		++sp;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_de:
-		registers.e = mmu.read_byte(sp);
+		registers.e = mmu->read_byte(sp);
 		++sp;
-		registers.d = mmu.read_byte(sp);
+		registers.d = mmu->read_byte(sp);
 		++sp;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_hl:
-		registers.l = mmu.read_byte(sp++);
-		registers.h = mmu.read_byte(sp++);
+		registers.l = mmu->read_byte(sp++);
+		registers.h = mmu->read_byte(sp++);
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::ld_hl_sp_R8:
 	{
 		// Add the signed value R8 to SP and store the result in HL.
-		int8_t offset = mmu.read_byte(pc + 1);
+		int8_t offset = mmu->read_byte(pc + 1);
 		registers.hl = sp + offset;
 		// carry and half carry are computed on the lower 8 bits
 		// #TODO: verify carry!
@@ -2403,7 +2262,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::add_a_hl:
 	{
-		uint8_t value = mmu.read_byte(registers.hl);
+		uint8_t value = mmu->read_byte(registers.hl);
 		uint16_t res = registers.a + value;
 
 		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
@@ -2418,7 +2277,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::add_a_d8:
 	{
-		uint8_t value = mmu.read_byte(pc + 1);
+		uint8_t value = mmu->read_byte(pc + 1);
 		uint16_t res = registers.a + value;
 
 		// test only the lower 8 bits, otherwise we'll get a wrong result if
@@ -2436,7 +2295,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::add_sp_r8:
 	{
-		int8_t value = mmu.read_byte(pc + 1);
+		int8_t value = mmu->read_byte(pc + 1);
 		uint16_t res = sp + value;
 
 		//(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
@@ -2554,7 +2413,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::adc_a_hl:
 	{
-		uint8_t value = mmu.read_byte(registers.hl);
+		uint8_t value = mmu->read_byte(registers.hl);
 		uint8_t carry;
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint16_t res = registers.a + value + carry;
@@ -2589,7 +2448,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::adc_a_d8:
 	{
-		uint8_t value = mmu.read_byte(pc + 1);
+		uint8_t value = mmu->read_byte(pc + 1);
 		uint8_t carry;
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint16_t res = registers.a + value + carry;
@@ -2607,7 +2466,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::sbc_a_d8:
 	{
-		uint8_t value = mmu.read_byte(pc + 1);
+		uint8_t value = mmu->read_byte(pc + 1);
 		uint8_t carry;
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint8_t res = registers.a - value - carry;
@@ -2744,7 +2603,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::sbc_a_hl:
 	{
-		uint8_t value = mmu.read_byte(registers.hl);
+		uint8_t value = mmu->read_byte(registers.hl);
 		uint8_t carry;
 		flags.c == true ? carry = 1U : carry = 0U;
 		uint8_t res = registers.a - value - carry;
@@ -2761,7 +2620,7 @@ uint8_t CPU::step()
 		break;
 	}
 	case Instruction::and_d8:
-		registers.a &= mmu.read_byte(pc + 1);
+		registers.a &= mmu->read_byte(pc + 1);
 
 		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.n = false;
@@ -2841,7 +2700,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::and_hl:
-		registers.a &= mmu.read_byte(registers.hl);
+		registers.a &= mmu->read_byte(registers.hl);
 
 		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.n = false;
@@ -2853,7 +2712,7 @@ uint8_t CPU::step()
 
 	case Instruction::sub_d8:
 	{
-		uint8_t val = mmu.read_byte(pc + 1);
+		uint8_t val = mmu->read_byte(pc + 1);
 		uint8_t res = registers.a - val;
 
 		res == 0 ? flags.z = true : flags.z = false;
@@ -2968,7 +2827,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::sub_hl:
 	{
-		uint8_t val = mmu.read_byte(registers.hl);
+		uint8_t val = mmu->read_byte(registers.hl);
 		uint8_t res = registers.a - val;
 
 		res == 0 ? flags.z = true : flags.z = false;
@@ -3060,7 +2919,7 @@ uint8_t CPU::step()
 		break;
 	}
 	case Instruction::xor_hl:
-		registers.a ^= mmu.read_byte(registers.hl);
+		registers.a ^= mmu->read_byte(registers.hl);
 		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
@@ -3070,7 +2929,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::xor_d8:
-		registers.a ^= mmu.read_byte(pc + 1);
+		registers.a ^= mmu->read_byte(pc + 1);
 		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
@@ -3143,7 +3002,7 @@ uint8_t CPU::step()
 		cycles = 4;
 		break;
 	case Instruction::or_hl:
-		registers.a |= mmu.read_byte(registers.hl);
+		registers.a |= mmu->read_byte(registers.hl);
 		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
@@ -3152,7 +3011,7 @@ uint8_t CPU::step()
 		cycles = 8;
 		break;
 	case Instruction::or_d8:
-		registers.a |= mmu.read_byte(pc + 1);
+		registers.a |= mmu->read_byte(pc + 1);
 		registers.a == 0 ? flags.z = true : flags.z = false;
 		flags.c = false;
 		flags.h = false;
@@ -3253,9 +3112,9 @@ uint8_t CPU::step()
 	}
 	case Instruction::inc_at_hl:
 	{
-		uint8_t val = mmu.read_byte(registers.hl);
+		uint8_t val = mmu->read_byte(registers.hl);
 		uint8_t res = val + 1;
-		mmu.write_byte(registers.hl, res);
+		mmu->write_byte(registers.hl, res);
 
 		res == 0 ? flags.z = true : flags.z = false;
 		(val ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
@@ -3358,9 +3217,9 @@ uint8_t CPU::step()
 	}
 	case Instruction::dec_at_hl:
 	{
-		uint8_t val = mmu.read_byte(registers.hl);
+		uint8_t val = mmu->read_byte(registers.hl);
 		uint8_t res = val - 1;
-		mmu.write_byte(registers.hl, res);
+		mmu->write_byte(registers.hl, res);
 		res == 0 ? flags.z = true : flags.z = false;
 		(val ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
 		flags.n = true;
@@ -3462,7 +3321,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_d8:
 	{
-		uint8_t val = mmu.read_byte(pc + 1);
+		uint8_t val = mmu->read_byte(pc + 1);
 		uint8_t res = registers.a - val;
 
 		res == 0 ? flags.z = true : flags.z = false;
@@ -3476,7 +3335,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_hl:
 	{
-		uint8_t val = mmu.read_byte(registers.hl);
+		uint8_t val = mmu->read_byte(registers.hl);
 		uint8_t res = registers.a - val;
 
 		res == 0 ? flags.z = true : flags.z = false;
@@ -3584,8 +3443,8 @@ uint8_t CPU::step()
 	// Jumps
 	case Instruction::jp_a16:
 	{
-		uint8_t c = mmu.read_byte(pc + 1);
-		uint8_t d = mmu.read_byte(pc + 2);
+		uint8_t c = mmu->read_byte(pc + 1);
+		uint8_t d = mmu->read_byte(pc + 2);
 		pc = (d << 8) + c;
 		cycles = 16;
 		break;
@@ -3593,8 +3452,8 @@ uint8_t CPU::step()
 	case Instruction::jp_z_a16:
 	{
 		if (flags.z) {
-			uint8_t c = mmu.read_byte(pc + 1);
-			uint8_t d = mmu.read_byte(pc + 2);
+			uint8_t c = mmu->read_byte(pc + 1);
+			uint8_t d = mmu->read_byte(pc + 2);
 			pc = (d << 8) + c;
 			cycles = 16;
 		}
@@ -3614,7 +3473,7 @@ uint8_t CPU::step()
 			cycles = 12;
 		}
 		else {
-			pc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
+			pc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			cycles = 16;
 		}
 		break;
@@ -3624,7 +3483,7 @@ uint8_t CPU::step()
 			cycles = 12;
 		}
 		else {
-			pc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
+			pc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			cycles = 16;
 		}
 		break;
@@ -3634,18 +3493,18 @@ uint8_t CPU::step()
 			cycles = 12;
 		}
 		else {
-			pc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
+			pc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			cycles = 16;
 		}
 		break;
 	case Instruction::jr_r8:
 		// must jump from the address of the NEXT instruction (ie 2 bytes after this one)
-		pc += (int8_t)(mmu.read_byte(pc + 1) + 2);
+		pc += (int8_t)(mmu->read_byte(pc + 1) + 2);
 		cycles = 12;
 		break;
 	case Instruction::jr_c_r8:
 		if (flags.c) {
-			pc += (int8_t)(mmu.read_byte(pc + 1) + 2);
+			pc += (int8_t)(mmu->read_byte(pc + 1) + 2);
 			cycles = 12;
 		}
 		else {
@@ -3659,7 +3518,7 @@ uint8_t CPU::step()
 			cycles = 8;
 		}
 		else {
-			auto offset = (int8_t)mmu.read_byte(pc + 1);
+			auto offset = (int8_t)mmu->read_byte(pc + 1);
 			pc += (2 + offset);
 			cycles = 12;
 		}
@@ -3670,14 +3529,14 @@ uint8_t CPU::step()
 			cycles = 8;
 		}
 		else {
-			auto offset = (int8_t)mmu.read_byte(pc + 1);
+			auto offset = (int8_t)mmu->read_byte(pc + 1);
 			pc += (2 + offset);
 			cycles = 12;
 		}
 		break;
 	case Instruction::jr_z_r8:
 		if (flags.z) {
-			auto offset = (int8_t)mmu.read_byte(pc + 1);
+			auto offset = (int8_t)mmu->read_byte(pc + 1);
 			pc += (2 + offset);
 			cycles = 12;
 		}
@@ -3737,16 +3596,16 @@ uint8_t CPU::step()
 	}
 	// Calls
 	case Instruction::call_a16:
-		mmu.write_byte(--sp, (pc + 3) >> 8);
-		mmu.write_byte(--sp, pc + 3);
-		pc = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
+		mmu->write_byte(--sp, (pc + 3) >> 8);
+		mmu->write_byte(--sp, pc + 3);
+		pc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 		cycles = 12;
 		break;
 	case Instruction::call_nz_a16:
 		if (!flags.z) {
-			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(--sp, (pc + 3) >> 8);
-			mmu.write_byte(--sp, pc + 3);
+			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+			mmu->write_byte(--sp, (pc + 3) >> 8);
+			mmu->write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3757,9 +3616,9 @@ uint8_t CPU::step()
 		break;
 	case Instruction::call_z_a16:
 		if (flags.z) {
-			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(--sp, (pc + 3) >> 8);
-			mmu.write_byte(--sp, pc + 3);
+			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+			mmu->write_byte(--sp, (pc + 3) >> 8);
+			mmu->write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3770,9 +3629,9 @@ uint8_t CPU::step()
 		break;
 	case Instruction::call_nc_a16:
 		if (!flags.c) {
-			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(--sp, (pc + 3) >> 8);
-			mmu.write_byte(--sp, pc + 3);
+			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+			mmu->write_byte(--sp, (pc + 3) >> 8);
+			mmu->write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3783,9 +3642,9 @@ uint8_t CPU::step()
 		break;
 	case Instruction::call_c_a16:
 		if (flags.c) {
-			uint16_t address = (mmu.read_byte(pc + 2) << 8) + mmu.read_byte(pc + 1);
-			mmu.write_byte(--sp, (pc + 3) >> 8);
-			mmu.write_byte(--sp, pc + 3);
+			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+			mmu->write_byte(--sp, (pc + 3) >> 8);
+			mmu->write_byte(--sp, pc + 3);
 			cycles = 24;
 			pc = address;
 		}
@@ -3796,64 +3655,64 @@ uint8_t CPU::step()
 		break;
 	// Restarts
 	case Instruction::rst_00h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0000;
 		cycles = 16;
 		break;
 	case Instruction::rst_08h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0008;
 		cycles = 16;
 		break;
 	case Instruction::rst_10h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0010;
 		cycles = 16;
 		break;
 	case Instruction::rst_18h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0018;
 		cycles = 16;
 		break;
 	case Instruction::rst_20h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0020;
 		cycles = 16;
 		break;
 	case Instruction::rst_28h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0028;
 		cycles = 16;
 		break;
 	case Instruction::rst_30h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0030;
 		cycles = 16;
 		break;
 	case Instruction::rst_38h:
-		mmu.write_byte(--sp, (pc + 1) >> 8);
-		mmu.write_byte(--sp, pc + 1);
+		mmu->write_byte(--sp, (pc + 1) >> 8);
+		mmu->write_byte(--sp, pc + 1);
 		pc = 0x0038;
 		cycles = 16;
 		break;
 	// Returns
 	case Instruction::ret:
 	{
-		pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
+		pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 		sp += 2;
 		cycles = 8;
 		break;
 	}
 	case Instruction::reti:
 	{
-		pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
+		pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 		ime = true;
 		sp += 2;
 		cycles = 16;
@@ -3862,7 +3721,7 @@ uint8_t CPU::step()
 	case Instruction::ret_z:
 	{
 		if (flags.z) {
-			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
+			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		}
@@ -3875,7 +3734,7 @@ uint8_t CPU::step()
 	case Instruction::ret_nz:
 	{
 		if (!flags.z) {
-			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
+			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		} else {
@@ -3887,7 +3746,7 @@ uint8_t CPU::step()
 	case Instruction::ret_c:
 	{
 		if (flags.c) {
-			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
+			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		}
@@ -3900,7 +3759,7 @@ uint8_t CPU::step()
 	case Instruction::ret_nc:
 	{
 		if (!flags.c) {
-			pc = (mmu.read_byte(sp + 1) << 8) + mmu.read_byte(sp);
+			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
 		}
@@ -3924,7 +3783,7 @@ uint8_t CPU::step()
 		break;
 	}
 	case Instruction::ld_a_at_c:
-		registers.a = mmu.read_byte(0xFF00 + registers.c);
+		registers.a = mmu->read_byte(0xFF00 + registers.c);
 		++pc;
 		cycles = 8;
 		break;
@@ -3965,8 +3824,8 @@ uint8_t CPU::step()
 		// suspend and wait for interrupts
 		// #TODO - Fix / Actually implement
 		halted = true;
-		uint8_t ie = mmu.read_byte(IE);
-		uint8_t int_flag = mmu.read_byte(IF);
+		uint8_t ie = mmu->read_byte(IE);
+		uint8_t int_flag = mmu->read_byte(IF);
 		// enter halt mode normally
 		if (ime && ((ie & int_flag & 0x1f) != 0)) {
 			halted = false;
