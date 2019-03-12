@@ -17,8 +17,7 @@ constexpr uint8_t PPU_MODE_LCD_XFER	  = 0x03;
 constexpr uint8_t OBJ_BG_PRIORITY = 0x80; // bit 7
 constexpr uint8_t Y_FLIP = 0x40;		  // bit 6
 constexpr uint8_t X_FLIP = 0x20;		  // bit 5
-constexpr uint8_t PAL_NUM = 0x10;		  // bit 4
-
+constexpr uint8_t PAL_NUM = 0x10;		  // bit 4o
 
 struct Pixel {
 	uint8_t r;
@@ -35,6 +34,15 @@ struct Sprite {
 	uint8_t tile;
 	uint8_t flags;
 	uint16_t oam_addr;
+};
+enum class PixelSource {
+		bgp,
+		ogp0,
+		ogp1
+	};
+struct PixelFIFO {
+	uint8_t tile;
+	PixelSource source;
 };
 
 class PPU {
@@ -73,10 +81,7 @@ private:
 	bool finished_current_line;
 	bool oam_done;
 	// visible sprites for each line
-	//std::array<std::array<Sprite, 10>, 144> visible_sprites{};
-	//std::vector<std::vector<Sprite>> visible_sprites{};
-	//std::array<Sprite, 10> visible_sprites{};
-	std::vector<Sprite> visible_sprites{ 10 };
+	std::vector<Sprite> visible_sprites;
 };
 
 #endif // !PPU_H

@@ -89,6 +89,11 @@ uint8_t MMU::read_byte(uint16_t loc)
 			bitmask_clear(memory[loc], 0x03);
 		}
 	}
+
+	// RAM has to be enabled to read from it?
+	/*if (loc >= 0xA000 && loc <= 0xBFFF && ram_enabled == false) {
+		return 0xFF;
+	}*/
 	//if (loc == 0xFF80)
 //		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
 
@@ -104,6 +109,13 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	// check for bank switching here?
 	if (loc == 0xFF50 && val == 0x01)
 		boot_rom_enabled = false;
+
+	// RAM Enable
+	/*if (loc >= 0 && loc <= 0x1FFF) {
+		spdlog::get("stdout")->debug("RAM enable @ {0:04x}: {1:02x}", loc, val);
+		BITMASK_CHECK_ALL(val, 0x0A) ? ram_enabled = true : ram_enabled = false;
+		spdlog::get("stdout")->debug("ram_enabled = {0}", ram_enabled);
+	}*/
 
 	// writes here set the lower 5 bits of the ROM bank
 	if (loc >= 0x2000 && loc <= 0x3FFF && rom_banks > 2) {

@@ -3,9 +3,10 @@
 #include "cpu.h"
 #include "bit_utility.h"
 #include "spdlog/spdlog.h"
+#include <queue>
 
 
-PPU::PPU(MMU& m) : mmu(m)
+PPU::PPU(MMU& m) : mmu(m), visible_sprites{}
 {
 	curr_scanline_cycles = 0;
 	oam_done = false;
@@ -19,7 +20,7 @@ void PPU::print()
 	uint8_t currLY = mmu.read_byte(LY);
 	uint8_t scx = mmu.read_byte(SCX);
 	uint8_t scy = mmu.read_byte(SCY);
-//	Logger::logger->debug("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
+	//	Logger::logger->debug("current scanline: {0} ({3} cycles) SCX: {1:02x} SCY: {2:02x}", currLY, scx, scy, curr_scanline_cycles);
 }
 
 uint8_t PPU::get_mode()
@@ -155,7 +156,8 @@ void PPU::update(int cycles)
 				continue;
 			// part of this sprite is on our line
 			// sprite height ??
-			if ((s.y - 8 >= currLY && (s.y - 8) < (currLY + 8)) && visible_sprites.size() < 10) {
+			// #TODO - change 8 here to sprite height - 8/16
+			if (s.x != 0 && ((currLY + 16 >= s.y) && (currLY + 16 < s.y + 8)) && visible_sprites.size() < 10) {
 				visible_sprites.push_back(s);
 				//spdlog::get("stdout")->debug("Visible sprite: x: {0} y: {1}, tile: {2}, flags: {3:02X}", s.x, s.y, s.tile, s.flags);
 			}
@@ -179,7 +181,7 @@ void PPU::update(int cycles)
 			// leftmost?
 			uint8_t tile_num = mmu.read_byte(bg_map_address);
 			// which we can use to grab the actual tile bytes
-			// grab and discard the first byte becuase that's what hardware does?
+			// grab the first byte and discard (like real h/w?)
 			uint16_t tileset;
 			uint16_t tileaddr;
 			if (bit_check(lcdc, 4)) {
@@ -192,12 +194,56 @@ void PPU::update(int cycles)
 			}
 			uint8_t tile_low = mmu.read_byte(tileaddr);
 			uint8_t tile_high = mmu.read_byte(tileaddr + 1);
-			int count = 0;
+			std::queue<uint8_t> p{};
+			//std::queue<PixelFIFO> pixel_fifo{};
+			//std::queue<uint8_t> sprite_fifo{};
+			//while (count < 160) {
+			//	// fetch bg pixels
+			//	// place in queue
+			//	// check if sprite at this location
+			//	// push pixels one at a time, checking for sprite each location
+			//	// also checking if window on, and if so fetching/drawing those instead
+			//	// once less than 8 pxiels in fifo, fetch another bg tile and fill
+			//	// do for 160 total pixels
+			//	while (pixel_fifo.size() < 8) {
+			//		tile_num = mmu.read_byte(bg_map_address);
+			//		// w
+			//		if (bit_check(lcdc, 4)) {
+			//			tileaddr = tileset + (tile_num * 16);
+			//		}
+			//		else {
+			//			tileaddr = tileset + (static_cast<int8_t>(tile_num) * 16);
+			//		}
+			//		// get the right vertical row of the tile
+			//		tileaddr = tileaddr + ((ybase % 8) * 2);
+			//		tile_low = mmu.read_byte(tileaddr);
+			//		tile_high = mmu.read_byte(tileaddr + 1);
+
+			//		for (int bit = 7; bit >= 0; --bit) {
+			//			// check for sprite
+			//			for (Sprite &s : visible_sprites) {
+			//				if (s.x == count + scx)
+			//					// fetch and combine this sprite with teh 8 bg pixels
+			//			}
+			//			uint8_t bit_low = bit_check(tile_low, bit);
+			//			uint8_t bit_high = (tile_high >> bit) & 1U;
+			//			uint8_t palette = (bit_high << 1) | bit_low;
+			//			PixelFIFO pf;
+			//			pf.source = PPU::PixelSource::bgp;
+			//			pf.tile = palette;
+			//			pixel_fifo.push(pf);
+			//			// combine these two bits to get our palette code
+			//			// figure our pixel color here
+			//			++count;
+			//		}
+			//		bg_map_address += 1;
+			//	}
+			//}
 			// background (20 tiles wide)
-			// #TODO: handle screen wrapping
-			for (int i = 0; i < 20; ++i) {
+			// #TODO: handle screen wrapping pixelwise and not whole tiles at a time!!
+			while (p.size() < 160) {
 				tile_num = mmu.read_byte(bg_map_address);
-				// w
+				// which
 				if (bit_check(lcdc, 4)) {
 					tileaddr = tileset + (tile_num * 16);
 				}
@@ -208,18 +254,20 @@ void PPU::update(int cycles)
 				tileaddr = tileaddr + ((ybase % 8) * 2);
 				tile_low = mmu.read_byte(tileaddr);
 				tile_high = mmu.read_byte(tileaddr + 1);
-
 				for (int bit = 7; bit >= 0; --bit) {
 					uint8_t bit_low = bit_check(tile_low, bit);
-					//uint8_t bit_low = (tile_low >> bit) & 1U;
 					uint8_t bit_high = (tile_high >> bit) & 1U;
 					uint8_t palette = (bit_high << 1) | bit_low;
+					p.push(palette);
 
-					// combine these two bits to get our palette code
-					// figure our pixel color here
-					Pixel pixel = get_color(palette);
-					pixels[currLY][count] = pixel;
-					++count;
+					if (p.size() == 160)
+						break;
+				}
+				// first tile so compensate for any horizontal scrolling
+				if (p.size() <= 8) {
+					for (int x = 0; x < (scx % 8); ++x) {
+						p.pop();
+					}
 				}
 				bg_map_address += 1;
 
@@ -227,9 +275,16 @@ void PPU::update(int cycles)
 					bg_map_address = bg_map_base;
 			}
 
+			// push all pixels to "lcd"
+			for (int i = 0; i < 160; ++i) {
+				Pixel pixel = get_color(p.front());
+				pixels[currLY][i] = pixel;
+				p.pop();
+			}
+
 			// if window enabled, render
 			if (bit_check(lcdc, 5)) {
-
+				uint16_t win_map = 0x9c00;
 			}
 
 			// if sprites enabled, render
@@ -242,7 +297,7 @@ void PPU::update(int cycles)
 				for (Sprite &s : visible_sprites) {
 					uint16_t tileaddr = 0x8000 + (s.tile * 16);
 					// flip y
-					tileaddr += ((currLY) - (s.y - 15)) * 2;
+					tileaddr += ((currLY)-(s.y - 16)) * 2;
 					// #TODO: sprite flag handling
 					// y/x flipping, OBP1 palette, bg/win priority
 					//spdlog::get("stdout")->debug("sprite tile address: {0:04x} OAM: {3:04X} LY: {1} sprite y pos: {2}", tileaddr, currLY, s.y, s.oam_addr);
@@ -347,7 +402,6 @@ std::unique_ptr<uint8_t[]> PPU::render() const
 			count += 4;
 		}
 	}
-
 	return pixels;
 }
 
@@ -408,7 +462,7 @@ std::unique_ptr<uint8_t[]> PPU::render_bg() const
  */
 std::unique_ptr<uint8_t[]> PPU::render_tiles() const
 {
-	auto pixels = std::make_unique<uint8_t[]>(128 * 256* 4);
+	auto pixels = std::make_unique<uint8_t[]>(128 * 256 * 4);
 
 	uint8_t tile_low;
 	uint8_t tile_high;

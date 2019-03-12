@@ -3972,10 +3972,18 @@ uint8_t CPU::step()
 			halted = false;
 			// push address of next instruction to the stack in interrupt handler
 			++pc;
-			handle_interrupts();
+			//handle_interrupts(); // or return?
 		}
 		else if (!ime && ((ie & int_flag & 0x1f) == 0)) {
 			// 
+			halted = false;
+			++pc;
+		}
+		else if (!ime && ((ie & int_flag & 0x1f) != 0)) {
+			// HALT bug basically, execute the next instruction twice
+			spdlog::get("stdout")->debug("HALT bug");
+			halt_bug_occurred = true;
+			++pc;
 		}
 		cycles = 4;
 		break;
@@ -4006,7 +4014,7 @@ constexpr void CPU::rlc(uint8_t &reg)
 	flags.h = false;
 }
 
-inline void CPU::rrc(uint8_t &reg)
+constexpr void CPU::rrc(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 0);
 	reg >>= 1;
@@ -4022,11 +4030,11 @@ inline void CPU::rrc(uint8_t &reg)
 /*     -----------------------v
      ^-- CY <-- [7 <-- 0] <---
 */
-inline void CPU::rl(uint8_t &reg)
+constexpr void CPU::rl(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
 	reg <<= 1;
-	uint8_t carry;
+	uint8_t carry = 0;
 	flags.c == true ? carry = 0x01 : carry = 0x00;
 	// put the previous carry back in the 0th position
 	reg ^= (-carry ^ reg) & (1U << 0);
@@ -4040,7 +4048,7 @@ inline void CPU::rl(uint8_t &reg)
 	flags.h = false;
 }
 
-inline void CPU::srl(uint8_t &reg)
+constexpr void CPU::srl(uint8_t &reg)
 {
 	// shift right into carry
 	uint8_t bit = bit_check(reg, 0);
@@ -4054,7 +4062,7 @@ inline void CPU::srl(uint8_t &reg)
 /*	  *	v------------------------
 ** RR * --> CY --> [7 --> 0] ---^
 */
-inline void CPU::rr(uint8_t &reg)
+constexpr void CPU::rr(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 0);
 	reg >>= 1;
@@ -4067,7 +4075,7 @@ inline void CPU::rr(uint8_t &reg)
 	flags.n = false;
 }
 
-inline void CPU::sla(uint8_t &reg)
+constexpr void CPU::sla(uint8_t &reg)
 {
 	flags.c = bit_check(reg, 7);
 	reg <<= 1;
@@ -4076,7 +4084,7 @@ inline void CPU::sla(uint8_t &reg)
 	flags.n = false;
 }
 
-inline void CPU::sra(uint8_t &reg)
+constexpr void CPU::sra(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
 	flags.c = bit_check(reg, 0);
@@ -4087,7 +4095,7 @@ inline void CPU::sra(uint8_t &reg)
 	flags.n = false;
 }
 
-inline void CPU::swap(uint8_t &reg)
+constexpr void CPU::swap(uint8_t &reg)
 {
 	uint8_t temp = reg;
 	reg <<= 4;

@@ -340,7 +340,7 @@ int main(int argc, char** argv) {
 
 		if (duration < tickrate) {
 			// sleep for remaining time
-			std::this_thread::sleep_for(tickrate - duration_us);
+			//std::this_thread::sleep_for(tickrate - duration_us);
 		}
 	}
 

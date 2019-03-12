@@ -29,6 +29,8 @@ constexpr uint16_t DMA  = 0xFF46;
 constexpr uint16_t BGP  = 0xFF47;
 constexpr uint16_t OBP0 = 0xFF48;
 constexpr uint16_t OBP1 = 0xFF49;
+constexpr uint16_t WY	= 0xFF4A;
+constexpr uint16_t WX	= 0xFF4B;
 
 constexpr uint8_t INPUT_START = 0x08;
 constexpr uint8_t INPUT_SELECT   = 0x04;
@@ -57,6 +59,8 @@ class Gameboy
 		PPU ppu;
 		const int max_cycles = 70224;
 		static std::array<uint8_t, 2> joypad;
+		void save_state();
+		void load_state();
 	private:
 		// a vert refresh after this many cycles
 		int curr_screen_cycles = 0;

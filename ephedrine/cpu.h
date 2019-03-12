@@ -601,15 +601,17 @@ private:
 	bool ime;
 	MMU &mmu;
 
+	bool halt_bug_occurred = false;
+
 	// some CB opcode DRY?
 	constexpr void rlc(uint8_t &reg);
-	void rrc(uint8_t &reg);
-	void rl(uint8_t &reg);
-	void rr(uint8_t &reg);
-	void sla(uint8_t &reg);
-	void sra(uint8_t &reg);
-	void srl(uint8_t &reg);
-	void swap(uint8_t &reg);
+	constexpr void rrc(uint8_t &reg);
+	constexpr void rl(uint8_t &reg);
+	constexpr void rr(uint8_t &reg);
+	constexpr void sla(uint8_t &reg);
+	constexpr void sra(uint8_t &reg);
+	constexpr void srl(uint8_t &reg);
+	constexpr void swap(uint8_t &reg);
 
 	// Flag register bit twiddling
 	constexpr void set_z() { bit_set(registers.f, 7); };
