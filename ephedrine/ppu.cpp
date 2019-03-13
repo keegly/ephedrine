@@ -145,7 +145,6 @@ void PPU::update(int cycles)
 		set_mode(PPU_MODE_OAM_SEARCH);
 		// reset our data from the prev line (if any)
 		visible_sprites.clear();
-		visible_sprites.resize(10);
 		// #TODO: if sprites enabled?
 		// loop through our (up to) 40 sprites in the OAM table
 		for (int i = 0xFE00; i < 0xFE9C; i += 4U) {
@@ -160,9 +159,9 @@ void PPU::update(int cycles)
 			// #TODO - change 8 here to sprite height - 8/16
 			if (s.x != 0 && ((currLY + 16 >= s.y) && (currLY + 16 < s.y + 8)) && visible_sprites.size() < 10) {
 				visible_sprites.push_back(s);
-				assert(visible_sprites.capacity() <= 10);
 				//spdlog::get("stdout")->debug("Visible sprite: x: {0} y: {1}, tile: {2}, flags: {3:02X}", s.x, s.y, s.tile, s.flags);
 			}
+			//spdlog::get("stdout")->debug("visible_sprites sz: {0}", visible_sprites.size());
 		}
 
 		oam_done = true;
@@ -315,8 +314,11 @@ void PPU::update(int cycles)
 							uint8_t bit_high = bit_check(tile_high, bit);
 							uint8_t palette = (bit_high << 1) | bit_low;
 							Pixel pixel = get_sprite_color(palette, bit_check(s.flags, 4));
-							if (pixel.a > 0)
-								pixels[currLY][(s.x - 8) + bit] = pixel;
+							if (pixel.a > 0) {
+								int subscript = (s.x - 8) + bit;
+								if (subscript >= 0 && subscript < 160)
+									pixels[currLY][(s.x - 8) + bit] = pixel;
+							}
 						}
 					}
 					else {
@@ -325,8 +327,11 @@ void PPU::update(int cycles)
 							uint8_t bit_high = bit_check(tile_high, bit);
 							uint8_t palette = (bit_high << 1) | bit_low;
 							Pixel pixel = get_sprite_color(palette, bit_check(s.flags, 4));
-							if (pixel.a > 0)
-								this->pixels[currLY][(s.x - 8) + index] = pixel;
+							if (pixel.a > 0) {
+								int subscript = (s.x - 8) + index;
+								if (subscript >= 0 && subscript < 160)
+									this->pixels[currLY][(s.x - 8) + index] = pixel;
+							}
 							++index;
 						}
 					}

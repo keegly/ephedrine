@@ -67,6 +67,7 @@ public:
 	}
 private:
 	std::shared_ptr<MMU> mmu;
+	//std::array<std::array<Pixel, 160>, 144> pixels;
 	Pixel pixels[144][160]; // 160x144 screen, 4 bytes per pixel
 	Pixel get_color(uint8_t tile) const;
 	Pixel get_sprite_color(uint8_t tile, bool obp1);
