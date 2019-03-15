@@ -78,11 +78,10 @@ Pixel PPU::get_sprite_color(uint8_t tile, bool obp_select)
 {
 	//uint8_t obp;
 	uint8_t obp = mmu->read_byte(OBP0);
-	if (obp_select)
+	if (obp_select) {
 		obp = mmu->read_byte(OBP1);
-	//uint8_t obp1 = mmu->read_byte(OBP1);
-	//obp_select ? obp = obp1 : obp0;
-	Pixel pixel;
+	}
+	Pixel pixel{};
 
 	switch (tile) {
 	case 0:
@@ -285,7 +284,68 @@ void PPU::update(int cycles)
 
 			// if window enabled, render
 			if (bit_check(lcdc, 5)) {
-				uint16_t win_map = 0x9c00;
+				std::queue<uint8_t> empty{};
+				std::swap(p, empty);
+				uint16_t window_tile_map = 0;
+				bit_check(lcdc, 6) ? window_tile_map = 0x9C00 : window_tile_map = 0x9800;
+				uint8_t window_x_scroll = mmu->read_byte(WX);
+				uint8_t window_y_scroll = mmu->read_byte(WY);
+				if (currLY >= window_y_scroll) {
+					//window_tile_map += window_x_scroll;
+					uint8_t tile_num = mmu->read_byte(window_tile_map);
+					// which we can use to grab the actual tile bytes
+					uint16_t tileset;
+					uint16_t tileaddr;
+					if (bit_check(lcdc, 4)) {
+						tileset = 0x8000;
+						tileaddr = tileset + (tile_num * 16);
+					}
+					else {
+						tileset = 0x9000;
+						tileaddr = tileset + (static_cast<int8_t>(tile_num) * 16);
+					}
+					uint8_t tile_low = mmu->read_byte(tileaddr);
+					uint8_t tile_high = mmu->read_byte(tileaddr + 1);
+
+					while (p.size() < (160)) {
+						tile_num = mmu->read_byte(window_tile_map);
+						// which
+						if (bit_check(lcdc, 4)) {
+							tileaddr = tileset + (tile_num * 16);
+						}
+						else {
+							tileaddr = tileset + (static_cast<int8_t>(tile_num) * 16);
+						}
+						// get the right vertical row of the tile
+						tileaddr = tileaddr + (((window_y_scroll + currLY) % 8) * 2);
+						tile_low = mmu->read_byte(tileaddr);
+						tile_high = mmu->read_byte(tileaddr + 1);
+						for (int bit = 7; bit >= 0; --bit) {
+							uint8_t bit_low = bit_check(tile_low, bit);
+							uint8_t bit_high = (tile_high >> bit) & 1U;
+							uint8_t palette = (bit_high << 1) | bit_low;
+							p.push(palette);
+
+							if (p.size() == (160 - (window_x_scroll - 7))) {
+								break;
+							}
+						}
+						window_tile_map += 1;
+
+						if (bg_map_address > (bg_map_base + 0x1F))
+							bg_map_address = bg_map_base;
+					}
+				}
+
+				int count = p.size();
+				for (int i = 0; i < count; ++i) {
+					Pixel pixel = get_color(p.front());
+					int x_pos = (window_x_scroll - 7) + i;
+					if (x_pos >= 0 && x_pos < 160) {
+						pixels[currLY][x_pos] = pixel;
+					}
+					p.pop();
+				}
 			}
 
 			// if sprites enabled, render
@@ -306,7 +366,7 @@ void PPU::update(int cycles)
 					tile_high = mmu->read_byte(tileaddr + 1);
 					int index = 0;
 					// if bit is 1, sprite behind BG colors 1-3
-					bool on_top = bit_check(s.flags, 7);
+					bool sprite_bg_priority = bit_check(s.flags, 7);
 					// x flipping
 					if (bit_check(s.flags, 5)) {
 						for (int bit = 0; bit <= 7; ++bit) {
@@ -314,10 +374,12 @@ void PPU::update(int cycles)
 							uint8_t bit_high = bit_check(tile_high, bit);
 							uint8_t palette = (bit_high << 1) | bit_low;
 							Pixel pixel = get_sprite_color(palette, bit_check(s.flags, 4));
-							if (pixel.a > 0) {
-								int subscript = (s.x - 8) + bit;
-								if (subscript >= 0 && subscript < 160)
-									pixels[currLY][(s.x - 8) + bit] = pixel;
+							int x_pos = (s.x - 8) + bit;
+							if (pixel.a == 0 || x_pos < 0 || x_pos >= 160) {
+								continue;
+							}
+							if ((sprite_bg_priority && pixels[currLY][x_pos].palette == 0) || !sprite_bg_priority) {
+								pixels[currLY][x_pos] = pixel;
 							}
 						}
 					}
@@ -327,10 +389,13 @@ void PPU::update(int cycles)
 							uint8_t bit_high = bit_check(tile_high, bit);
 							uint8_t palette = (bit_high << 1) | bit_low;
 							Pixel pixel = get_sprite_color(palette, bit_check(s.flags, 4));
-							if (pixel.a > 0) {
-								int subscript = (s.x - 8) + index;
-								if (subscript >= 0 && subscript < 160)
-									this->pixels[currLY][(s.x - 8) + index] = pixel;
+							int x_pos = (s.x - 8) + index;
+							if (pixel.a == 0 || x_pos < 0 || x_pos >= 160) {
+								++index;
+								continue;
+							}
+							if ((sprite_bg_priority && pixels[currLY][x_pos].palette == 0) || !sprite_bg_priority) {
+								this->pixels[currLY][x_pos] = pixel;
 							}
 							++index;
 						}
@@ -401,7 +466,7 @@ std::unique_ptr<uint8_t[]> PPU::render() const
 
 	int count = 0;
 	for (const auto & pixel : this->pixels) {
-		for (const auto x : pixel) {
+		for (const auto & x : pixel) {
 			pixels[count] = x.r;
 			pixels[count + 1] = x.g;
 			pixels[count + 2] = x.b;

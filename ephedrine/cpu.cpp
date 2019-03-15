@@ -37,7 +37,6 @@ void CPU::handle_interrupts()
 		return; // interrupts globally disabled or nothing to handle
 	// check register 0xFF0F to see which interrupt was generated
 	constexpr uint16_t offset[]{ 0x0040, 0x0048, 0x0050, 0x0058, 0x0060 };
-	uint16_t address = 0x0000;
 	for (uint8_t i = 0; i < 5; ++i) {
 		if (bit_check(if_reg, i) && bit_check(ie_reg, i))  {
 			// put current pc on stack and head to the proper service routine

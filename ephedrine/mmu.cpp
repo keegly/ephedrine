@@ -11,9 +11,10 @@
 MMU::MMU()
 {
 	boot_rom_enabled = true;
+	ram_enabled = false;
 	cartridge.clear();
 	rom_banks = 0;
-	ram_banks = 0;
+	num_ram_banks = 0;
 }
 MMU::MMU(std::vector<uint8_t> cart) : cartridge(cart)
 {
@@ -28,8 +29,11 @@ void MMU::load(std::vector<uint8_t> c)
 
 	rom_banks = (32 << cartridge[0x0148]) / 16;
 	spdlog::get("stdout")->debug("Rom Banks: {0}", rom_banks);
-	ram_banks = cartridge[0x0149];
-	spdlog::get("stdout")->debug("Ram Banks: {0:04X}", ram_banks);
+	num_ram_banks = cartridge[0x0149];
+	spdlog::get("stdout")->debug("Ram Banks: {0:04X}", num_ram_banks);
+	if (num_ram_banks > 1) {
+		ram_banks.resize(num_ram_banks);
+	}
 	if (rom_banks <= 2) {
 		int i = 0;
 		for (uint8_t byte : cartridge) {
@@ -90,12 +94,13 @@ uint8_t MMU::read_byte(uint16_t loc)
 		}
 	}
 
-	// RAM has to be enabled to read from it?
-	/*if (loc >= 0xA000 && loc <= 0xBFFF && ram_enabled == false) {
+	// RAM has to be enabled to read from it
+	if (loc >= 0xA000 && loc <= 0xBFFF && ram_enabled == false) {
 		return 0xFF;
-	}*/
-	//if (loc == 0xFF80)
-//		spdlog::get("stdout")->debug("ff80 read: {0:02X}", memory[loc]);
+	}
+	if (loc >= 0xA000 && loc <= 0xBFFF) {
+		return ram_banks[active_ram_bank].at(loc - 0xA000);
+	}
 
 	return memory[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
 
@@ -106,16 +111,15 @@ uint8_t MMU::read_byte(uint16_t loc)
 
 void MMU::write_byte(uint16_t loc, uint8_t val)
 {
-	// check for bank switching here?
 	if (loc == 0xFF50 && val == 0x01)
 		boot_rom_enabled = false;
 
 	// RAM Enable
-	/*if (loc >= 0 && loc <= 0x1FFF) {
-		spdlog::get("stdout")->debug("RAM enable @ {0:04x}: {1:02x}", loc, val);
+	if (loc >= 0 && loc <= 0x1FFF) {
+		//spdlog::get("stdout")->debug("RAM enable @ {0:04x}: {1:02x}", loc, val);
 		BITMASK_CHECK_ALL(val, 0x0A) ? ram_enabled = true : ram_enabled = false;
-		spdlog::get("stdout")->debug("ram_enabled = {0}", ram_enabled);
-	}*/
+		//spdlog::get("stdout")->debug("ram_enabled = {0}", ram_enabled);
+	}
 
 	// writes here set the lower 5 bits of the ROM bank
 	if (loc >= 0x2000 && loc <= 0x3FFF && rom_banks > 2) {
@@ -131,16 +135,30 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	}
 	// select the RAM/Upper bits of ROM bank
 	if (loc >= 0x4000 && loc <= 0x5FFF) {
+		// switch RAM banks
+		if (ram_banking_mode) {
+			active_ram_bank = val % num_ram_banks;
+		}
+		// otherwise set the top two bits of the ROM bank
+		else {
+			bitmask_clear(active_rom_bank, 0xC0);
+			bitmask_set(active_rom_bank, val << 6);
+		}
 		spdlog::get("stdout")->debug("ram/upper bits of rom bank @ {0:04X} - {1:02X} val", loc, val);
 		return;
 	}
 	// Rom/Ram mode
 	if (loc >= 0x6000 && loc <= 0x7FFF) {
 		spdlog::get("stdout")->debug("rom/ram mode set @ {0:04X} - {1:02X} val", loc, val);
+		ram_banking_mode = val;
 		return;
 	}
 	if (loc >= 0xA000 && loc <= 0xBFFF) {
 		//spdlog::get("stdout")->debug("External ram access @ {0:04X} - {1:02X}", loc, val);
+		if (num_ram_banks > 0) {
+			ram_banks[active_ram_bank].at(loc - 0xA000) = val;
+		}
+		// save game here?
 	}
 	// no writing to ROM
 	if (loc <= 0x8000)
@@ -152,8 +170,10 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		return;
 	}
 	// Writes to DIV reset it
-	if (loc == DIV)
+	if (loc == DIV) {
 		Gameboy::set_timer(0);
+		spdlog::get("stdout")->debug("Timer divider set to 0");
+	}
 
 	// deal with read only bits on the LCD STAT register
 	//if (loc == STAT) {

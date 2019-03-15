@@ -23,15 +23,17 @@ class MMU {
 		}
 		// total amount of 8kB memory banks we have
 		int rom_banks;
-		int ram_banks;
-		bool boot_rom_enabled;
+		int num_ram_banks;
+		bool boot_rom_enabled{};
 	private:
 		std::array<uint8_t, 0x10000> memory{};
 		std::vector<uint8_t> cartridge{};
 		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks{};
+		std::vector<std::array<uint8_t, 0x2000>> ram_banks{};
 		uint8_t active_rom_bank;
 		uint8_t active_ram_bank;
-		//bool ram_enabled = false;
+		bool ram_banking_mode{};
+		bool ram_enabled{};
 		// Boot ROM
 		const uint8_t boot_rom[256] = {
 			0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB,
