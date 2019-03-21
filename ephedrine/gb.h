@@ -44,30 +44,33 @@ constexpr uint8_t INPUT_RIGHT = 0x01;
 class Gameboy
 {
 	public:
-		Gameboy(std::vector<uint8_t> cart);
+		Gameboy();
+		Gameboy(std::vector<uint8_t> cart, std::string game);
 		void reset();
 		void handle_interrupts();
-		void handle_input(std::array<uint8_t, 2> joypad);
+		void handle_input(std::array<uint8_t, 2> jp);
 		int tick(int ticks);
 		void tick_until(uint16_t pc);
 		void load(std::vector<uint8_t> cart);
-		static void set_timer(uint16_t t) { divider = t; }
-		uint16_t get_timer() { return divider; }
+		static void set_timer(uint16_t t) { divider_ = t; }
+		uint16_t get_timer() { return divider_; }
 		void timer_tick(int cycles);
 		std::shared_ptr<CPU> cpu;
 		std::shared_ptr<MMU> mmu;
 		std::shared_ptr<PPU> ppu;
 		//PPU ppu;
-		const int max_cycles = 70224;
+		const int max_cycles_per_vertical_refresh = 70224;
 		static std::array<uint8_t, 2> joypad;
 		void save_state();
 		void load_state();
+		~Gameboy();
 	private:
 		// a vert refresh after this many cycles
-		int curr_screen_cycles = 0;
-		static uint16_t divider;
-		int timer_ticks;
-		const int clocks[4] = { 1024, 16, 64, 256 };
+		int current_screen_cycles_ = 0;
+		std::string game_;
+		static uint16_t divider_;
+		int timer_ticks_;
+		const int clocks_[4] = { 1024, 16, 64, 256 };
 		std::mutex mutex;
 };
 

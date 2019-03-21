@@ -3,11 +3,13 @@
 
 #include <array>
 #include <vector>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/array.hpp>
 
 class MMU {
 	public:
 		MMU();
-		MMU(std::vector<uint8_t> cart);
+		MMU(std::vector<uint8_t> cart, bool boot_rom = false);
 		//MMU(uint8_t *cartridge, long size); // take cartridge pointer/length as arguments
 
 		void load(std::vector<uint8_t> c);
@@ -22,16 +24,23 @@ class MMU {
 			return cartridge.size();
 		}
 		// total amount of 8kB memory banks we have
-		int rom_banks;
-		int num_ram_banks;
-		bool boot_rom_enabled{};
+		int rom_banks = 0;
+		int num_ram_banks = 0;
+		bool boot_rom_enabled = true;
+		bool cart_ram_modified = false;
 	private:
+		friend class boost::serialization::access;
+		template<class Archive>
+		void serialize(Archive &ar, const unsigned int version)
+		{
+			ar & ram_banks;
+		}
 		std::array<uint8_t, 0x10000> memory{};
 		std::vector<uint8_t> cartridge{};
 		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks{};
 		std::vector<std::array<uint8_t, 0x2000>> ram_banks{};
-		uint8_t active_rom_bank;
-		uint8_t active_ram_bank;
+		uint8_t active_rom_bank{};
+		uint8_t active_ram_bank{};
 		bool ram_banking_mode{};
 		bool ram_enabled{};
 		// Boot ROM

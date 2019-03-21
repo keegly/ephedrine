@@ -15,16 +15,15 @@ MMU::MMU()
 	cartridge.clear();
 	rom_banks = 0;
 	num_ram_banks = 0;
+	active_ram_bank = 0;
 }
-MMU::MMU(std::vector<uint8_t> cart) : cartridge(cart)
+MMU::MMU(std::vector<uint8_t> cart, bool boot_rom) : cartridge(cart), boot_rom_enabled(boot_rom)
 {
-	//boot_rom_enabled = false;
 	load(cartridge);
 }
 
 void MMU::load(std::vector<uint8_t> c)
 {
-	boot_rom_enabled = false;
 	if (c.empty()) return;
 
 	rom_banks = (32 << cartridge[0x0148]) / 16;
@@ -78,6 +77,8 @@ uint8_t MMU::read_byte(uint16_t loc)
 		return boot_rom[loc];
 	if (cartridge.empty())
 		return 0xFF;
+	// PPU mode
+	uint8_t ppu_mode = memory[STAT] & 0x03;
 	// Read from a ROM bank
 	/*if (rom_banks > 2 && loc >= 0x4000 && loc <= 0x7FFF) {
 		return cart_rom_banks[active_rom_bank][loc - 0x4000];
@@ -93,14 +94,21 @@ uint8_t MMU::read_byte(uint16_t loc)
 			bitmask_clear(memory[loc], 0x03);
 		}
 	}
-
+	// Vram inaccessible during mode 3
+	//if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == PPU_MODE_LCD_XFER) {
+	//	return 0xFF;
+	//}
 	// RAM has to be enabled to read from it
-	if (loc >= 0xA000 && loc <= 0xBFFF && ram_enabled == false) {
+	if (loc >= 0xA000 && loc <= 0xBFFF && !ram_enabled) {
 		return 0xFF;
 	}
 	if (loc >= 0xA000 && loc <= 0xBFFF) {
 		return ram_banks[active_ram_bank].at(loc - 0xA000);
 	}
+	// Only able to read from OAM in H-Blank and V-Blank
+	//if (loc >= 0xFE00 && loc <= 0xFE9F && ppu_mode >= PPU_MODE_OAM_SEARCH) {
+	//	return 0xFF;
+	//}
 
 	return memory[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
 
@@ -153,12 +161,17 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		ram_banking_mode = val;
 		return;
 	}
+	uint8_t ppu_mode = memory[STAT] & 0x03;
+	// Vram inaccessible during mode 3
+	if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == PPU_MODE_LCD_XFER) {
+		return;
+	}
 	if (loc >= 0xA000 && loc <= 0xBFFF) {
 		//spdlog::get("stdout")->debug("External ram access @ {0:04X} - {1:02X}", loc, val);
 		if (num_ram_banks > 0) {
 			ram_banks[active_ram_bank].at(loc - 0xA000) = val;
 		}
-		// save game here?
+		cart_ram_modified = true;
 	}
 	// no writing to ROM
 	if (loc <= 0x8000)
@@ -174,14 +187,6 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		Gameboy::set_timer(0);
 		spdlog::get("stdout")->debug("Timer divider set to 0");
 	}
-
-	// deal with read only bits on the LCD STAT register
-	//if (loc == STAT) {
-	//	uint8_t temp = val;
-	//	bitmask_clear(val, 0x03);
-	//	bitmask_set(memory[loc], val);
-	//	return;
-	//}
 
 	// any writing to 0xFF44 resets it
 	/*if (loc == 0xFF44)
@@ -219,8 +224,8 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		return;
 	}
 
-	// OAM Data Transfer
-	if (loc == DMA) {
+	// OAM Data Transfer, only possible during modes 0 and 1
+	if (loc == DMA && ppu_mode <= PPU_MODE_VBLANK) {
 		// val is the MSB of our source xfer address
 		uint16_t src = val << 8;
 		// bottom of OEM Ram
@@ -235,10 +240,6 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		return;
 	}
 
-
-	//spdlog::get("stdout")->debug("FF00 write: {0:02X}", val);
-//if (loc == 0xFF80)
-	//spdlog::get("stdout")->debug("FF80 write: {0:02X}", val);
 
 	memory.at(loc) = val;
 	//memory[loc] = val;

@@ -9,22 +9,23 @@
 #include "instructions.h"
 #include "spdlog/spdlog.h"
 
-CPU::CPU(std::shared_ptr<MMU> m) : mmu(m), pc(0x0100), sp(0xFFFE)
+CPU::CPU(std::shared_ptr<MMU> m) : mmu(m),  sp(0xFFFE)
 {
 	assert(m != nullptr);
-	registers.af = 0x01B0;
-	registers.bc = 0x0013;
-	registers.de = 0x00D8;
-	registers.hl = 0x014D;
+	registers_.af = 0x01B0;
+	registers_.bc = 0x0013;
+	registers_.de = 0x00D8;
+	registers_.hl = 0x014D;
+	mmu->boot_rom_enabled ? pc = 0 : pc = 0x100;
 
 	cycles = 0;
 }
 
 void CPU::print()
 {
-	spdlog::get("stdout")->debug("Registers: af:0x{0:04x} bc:0x{1:04x} de:0x{2:04x} hl:0x{3:04x}", registers.af, registers.bc, registers.de, registers.hl);
+	spdlog::get("stdout")->debug("Registers: af:0x{0:04x} bc:0x{1:04x} de:0x{2:04x} hl:0x{3:04x}", registers_.af, registers_.bc, registers_.de, registers_.hl);
 	spdlog::get("stdout")->debug("pc: 0x{0:04x} sp: 0x{1:04x}", pc, sp);
-	spdlog::get("stdout")->debug("Z: {0} N: {1} H: {2} C: {3}", flags.z, flags.n, flags.h, flags.c);
+	spdlog::get("stdout")->debug("Z: {0} N: {1} H: {2} C: {3}", flags_.z, flags_.n, flags_.h, flags_.c);
 
 }
 
@@ -57,9 +58,9 @@ uint8_t CPU::step()
 	//Instruction opcode;
 	auto opcode = (Instruction)mmu->read_byte(pc);
 	//spdlog::get("file logger")->info("pc: {0:04X} - op: {1:02X}", pc, (uint8_t)opcode);
-	//spdlog::get("file logger")->trace("Registers: af:0x{0:04X} bc:0x{1:04X} de:0x{2:04X} hl:0x{3:04X}", registers.af, registers.bc, registers.de, registers.hl);
+	//spdlog::get("file logger")->trace("Registers: af:0x{0:04X} bc:0x{1:04X} de:0x{2:04X} hl:0x{3:04X}", registers_.af, registers_.bc, registers_.de, registers_.hl);
 	//spdlog::get("file logger")->trace("pc: 0x{0:04X} opcode: 0x{1:02X} sp: 0x{2:04X}", pc, (uint8_t)opcode, sp);
-	//spdlog::get("file logger")->trace("Z: {0} N: {1} H: {2} C: {3}", flags.z, flags.n, flags.h, flags.c);
+	//spdlog::get("file logger")->trace("Z: {0} N: {1} H: {2} C: {3}", flags_.z, flags_.n, flags_.h, flags_.c);
 	//spdlog::get("file logger")->trace("--------------------------------------------------------------------------");
 
 	switch (opcode) {
@@ -68,1506 +69,1506 @@ uint8_t CPU::step()
 	{
 		switch (Prefix_CB(mmu->read_byte(pc + 1))) {
 		case Prefix_CB::rlc_b:
-			rlc(registers.b);
+			rlc(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rlc_c:
-			rlc(registers.c);
+			rlc(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rlc_d:
-			rlc(registers.d);
+			rlc(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rlc_e:
-			rlc(registers.e);
+			rlc(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rlc_h:
-			rlc(registers.h);
+			rlc(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rlc_l:
-			rlc(registers.l);
+			rlc(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rlc_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			rlc(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::rlc_a:
-			rlc(registers.a);
+			rlc(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_b:
-			rrc(registers.b);
+			rrc(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_c:
-			rrc(registers.c);
+			rrc(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_d:
-			rrc(registers.d);
+			rrc(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_e:
-			rrc(registers.e);
+			rrc(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_h:
-			rrc(registers.h);
+			rrc(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_l:
-			rrc(registers.l);
+			rrc(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rrc_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			rrc(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::rrc_a:
-			rrc(registers.a);
+			rrc(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_b:
-			rl(registers.b);
+			rl(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_c:
-			rl(registers.c);
+			rl(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_d:
-			rl(registers.d);
+			rl(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_e:
-			rl(registers.e);
+			rl(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_h:
-			rl(registers.h);
+			rl(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_l:
-			rl(registers.l);
+			rl(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rl_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			rl(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::rl_a:
-			rl(registers.a);
+			rl(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_b:
-			rr(registers.b);
+			rr(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_c:
-			rr(registers.c);
+			rr(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_d:
-			rr(registers.d);
+			rr(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_e:
-			rr(registers.e);
+			rr(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_h:
-			rr(registers.h);
+			rr(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_l:
-			rr(registers.l);
+			rr(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::rr_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			rr(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::rr_a:
-			rr(registers.a);
+			rr(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_b:
-			sla(registers.b);
+			sla(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_c:
-			sla(registers.c);
+			sla(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_d:
-			sla(registers.d);
+			sla(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_e:
-			sla(registers.e);
+			sla(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_h:
-			sla(registers.h);
+			sla(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_l:
-			sla(registers.l);
+			sla(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sla_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			sla(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::sla_a:
-			sla(registers.a);
+			sla(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_b:
-			sra(registers.b);
+			sra(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_c:
-			sra(registers.c);
+			sra(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_d:
-			sra(registers.d);
+			sra(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_e:
-			sra(registers.e);
+			sra(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_h:
-			sra(registers.h);
+			sra(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_l:
-			sra(registers.l);
+			sra(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::sra_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			sra(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::sra_a:
-			sra(registers.a);
+			sra(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_b:
-			swap(registers.b);
+			swap(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_c:
-			swap(registers.c);
+			swap(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_d:
-			swap(registers.d);
+			swap(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_e:
-			swap(registers.e);
+			swap(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_h:
-			swap(registers.h);
+			swap(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_l:
-			swap(registers.l);
+			swap(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::swap_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			swap(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::swap_a:
-			swap(registers.a);
+			swap(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_b:
-			srl(registers.b);
+			srl(registers_.b);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_c:
-			srl(registers.c);
+			srl(registers_.c);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_d:
-			srl(registers.d);
+			srl(registers_.d);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_e:
-			srl(registers.e);
+			srl(registers_.e);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_h:
-			srl(registers.h);
+			srl(registers_.h);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_l:
-			srl(registers.l);
+			srl(registers_.l);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::srl_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			srl(val);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::srl_a:
-			srl(registers.a);
+			srl(registers_.a);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_b:
-			flags.z = !bit_check(registers.b, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_c:
-			flags.z = !bit_check(registers.c, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_d:
-			flags.z = !bit_check(registers.d, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_e:
-			flags.z = !bit_check(registers.e, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_h:
-			flags.z = !bit_check(registers.h, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_l:
-			flags.z = !bit_check(registers.l, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_0_a:
-			flags.z = !bit_check(registers.a, 0);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 0);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_b:
-			flags.z = !bit_check(registers.b, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_c:
-			flags.z = !bit_check(registers.c, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_d:
-			flags.z = !bit_check(registers.d, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_e:
-			flags.z = !bit_check(registers.e, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_h:
-			flags.z = !bit_check(registers.h, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_l:
-			flags.z = !bit_check(registers.l, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_1_a:
-			flags.z = !bit_check(registers.a, 1);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 1);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_b:
-			flags.z = !bit_check(registers.b, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_c:
-			flags.z = !bit_check(registers.c, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_d:
-			flags.z = !bit_check(registers.d, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_e:
-			flags.z = !bit_check(registers.e, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_h:
-			flags.z = !bit_check(registers.h, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_l:
-			flags.z = !bit_check(registers.l, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_2_a:
-			flags.z = !bit_check(registers.a, 2);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 2);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_b:
-			flags.z = !bit_check(registers.b, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_c:
-			flags.z = !bit_check(registers.c, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_d:
-			flags.z = !bit_check(registers.d, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_e:
-			flags.z = !bit_check(registers.e, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_h:
-			flags.z = !bit_check(registers.h, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_l:
-			flags.z = !bit_check(registers.l, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_3_a:
-			flags.z = !bit_check(registers.a, 3);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 3);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_b:
-			flags.z = !bit_check(registers.b, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_c:
-			flags.z = !bit_check(registers.c, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_d:
-			flags.z = !bit_check(registers.d, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_e:
-			flags.z = !bit_check(registers.e, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_h:
-			flags.z = !bit_check(registers.h, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_l:
-			flags.z = !bit_check(registers.l, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_4_a:
-			flags.z = !bit_check(registers.a, 4);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 4);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_b:
-			flags.z = !bit_check(registers.b, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_c:
-			flags.z = !bit_check(registers.c, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_d:
-			flags.z = !bit_check(registers.d, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_e:
-			flags.z = !bit_check(registers.e, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_h:
-			flags.z = !bit_check(registers.h, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_l:
-			flags.z = !bit_check(registers.l, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_5_a:
-			flags.z = !bit_check(registers.a, 5);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 5);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_b:
-			flags.z = !bit_check(registers.b, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_c:
-			flags.z = !bit_check(registers.c, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_d:
-			flags.z = !bit_check(registers.d, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_e:
-			flags.z = !bit_check(registers.e, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_h:
-			flags.z = !bit_check(registers.h, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_l:
-			flags.z = !bit_check(registers.l, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_6_a:
-			flags.z = !bit_check(registers.a, 6);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 6);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_b:
-			flags.z = !bit_check(registers.b, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.b, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_c:
-			flags.z = !bit_check(registers.c, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.c, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_d:
-			flags.z = !bit_check(registers.d, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.d, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_e:
-			flags.z = !bit_check(registers.e, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.e, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_h:
-			flags.z = !bit_check(registers.h, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.h, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_l:
-			flags.z = !bit_check(registers.l, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.l, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_hl:
-			flags.z = !bit_check(mmu->read_byte(registers.hl), 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(mmu->read_byte(registers_.hl), 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::bit_7_a:
-			flags.z = !bit_check(registers.a, 7);
-			flags.n = false;
-			flags.h = true;
+			flags_.z = !bit_check(registers_.a, 7);
+			flags_.n = false;
+			flags_.h = true;
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_b:
-			bit_clear(registers.b, 0);
+			bit_clear(registers_.b, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_c:
-			bit_clear(registers.c, 0);
+			bit_clear(registers_.c, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_d:
-			bit_clear(registers.d, 0);
+			bit_clear(registers_.d, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_e:
-			bit_clear(registers.e, 0);
+			bit_clear(registers_.e, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_h:
-			bit_clear(registers.h, 0);
+			bit_clear(registers_.h, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_l:
-			bit_clear(registers.l, 0);
+			bit_clear(registers_.l, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_0_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 0);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_0_a:
-			bit_clear(registers.a, 0);
+			bit_clear(registers_.a, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_b:
-			bit_clear(registers.b, 1);
+			bit_clear(registers_.b, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_c:
-			bit_clear(registers.c, 1);
+			bit_clear(registers_.c, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_d:
-			bit_clear(registers.d, 1);
+			bit_clear(registers_.d, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_e:
-			bit_clear(registers.e, 1);
+			bit_clear(registers_.e, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_h:
-			bit_clear(registers.h, 1);
+			bit_clear(registers_.h, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_l:
-			bit_clear(registers.l, 1);
+			bit_clear(registers_.l, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_1_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 1);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_1_a:
-			bit_clear(registers.a, 1);
+			bit_clear(registers_.a, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_b:
-			bit_clear(registers.b, 2);
+			bit_clear(registers_.b, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_c:
-			bit_clear(registers.c, 2);
+			bit_clear(registers_.c, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_d:
-			bit_clear(registers.d, 2);
+			bit_clear(registers_.d, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_e:
-			bit_clear(registers.e, 2);
+			bit_clear(registers_.e, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_h:
-			bit_clear(registers.h, 2);
+			bit_clear(registers_.h, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_l:
-			bit_clear(registers.l, 2);
+			bit_clear(registers_.l, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_2_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 2);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_2_a:
-			bit_clear(registers.a, 2);
+			bit_clear(registers_.a, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_b:
-			bit_clear(registers.b, 3);
+			bit_clear(registers_.b, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_c:
-			bit_clear(registers.c, 3);
+			bit_clear(registers_.c, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_d:
-			bit_clear(registers.d, 3);
+			bit_clear(registers_.d, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_e:
-			bit_clear(registers.e, 3);
+			bit_clear(registers_.e, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_h:
-			bit_clear(registers.h, 3);
+			bit_clear(registers_.h, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_l:
-			bit_clear(registers.l, 3);
+			bit_clear(registers_.l, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_3_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 3);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_3_a:
-			bit_clear(registers.a, 3);
+			bit_clear(registers_.a, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_b:
-			bit_clear(registers.b, 4);
+			bit_clear(registers_.b, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_c:
-			bit_clear(registers.c, 4);
+			bit_clear(registers_.c, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_d:
-			bit_clear(registers.d, 4);
+			bit_clear(registers_.d, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_e:
-			bit_clear(registers.e, 4);
+			bit_clear(registers_.e, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_h:
-			bit_clear(registers.h, 4);
+			bit_clear(registers_.h, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_l:
-			bit_clear(registers.l, 4);
+			bit_clear(registers_.l, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_4_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 4);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_4_a:
-			bit_clear(registers.a, 4);
+			bit_clear(registers_.a, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_b:
-			bit_clear(registers.b, 5);
+			bit_clear(registers_.b, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_c:
-			bit_clear(registers.c, 5);
+			bit_clear(registers_.c, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_d:
-			bit_clear(registers.d, 5);
+			bit_clear(registers_.d, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_e:
-			bit_clear(registers.e, 5);
+			bit_clear(registers_.e, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_h:
-			bit_clear(registers.h, 5);
+			bit_clear(registers_.h, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_l:
-			bit_clear(registers.l, 5);
+			bit_clear(registers_.l, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_5_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 5);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_5_a:
-			bit_clear(registers.a, 5);
+			bit_clear(registers_.a, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_b:
-			bit_clear(registers.b, 6);
+			bit_clear(registers_.b, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_c:
-			bit_clear(registers.c, 6);
+			bit_clear(registers_.c, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_d:
-			bit_clear(registers.d, 6);
+			bit_clear(registers_.d, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_e:
-			bit_clear(registers.e, 6);
+			bit_clear(registers_.e, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_h:
-			bit_clear(registers.h, 6);
+			bit_clear(registers_.h, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_l:
-			bit_clear(registers.l, 6);
+			bit_clear(registers_.l, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_6_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 6);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_6_a:
-			bit_clear(registers.a, 6);
+			bit_clear(registers_.a, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_b:
-			bit_clear(registers.b, 7);
+			bit_clear(registers_.b, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_c:
-			bit_clear(registers.c, 7);
+			bit_clear(registers_.c, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_d:
-			bit_clear(registers.d, 7);
+			bit_clear(registers_.d, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_e:
-			bit_clear(registers.e, 7);
+			bit_clear(registers_.e, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_h:
-			bit_clear(registers.h, 7);
+			bit_clear(registers_.h, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_l:
-			bit_clear(registers.l, 7);
+			bit_clear(registers_.l, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::res_7_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_clear(val, 7);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::res_7_a:
-			bit_clear(registers.a, 7);
+			bit_clear(registers_.a, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_b:
-			bit_set(registers.b, 0);
+			bit_set(registers_.b, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_c:
-			bit_set(registers.c, 0);
+			bit_set(registers_.c, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_d:
-			bit_set(registers.d, 0);
+			bit_set(registers_.d, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_e:
-			bit_set(registers.e, 0);
+			bit_set(registers_.e, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_h:
-			bit_set(registers.h, 0);
+			bit_set(registers_.h, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_l:
-			bit_set(registers.l, 0);
+			bit_set(registers_.l, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_0_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 0);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_0_a:
-			bit_set(registers.a, 0);
+			bit_set(registers_.a, 0);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_b:
-			bit_set(registers.b, 1);
+			bit_set(registers_.b, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_c:
-			bit_set(registers.c, 1);
+			bit_set(registers_.c, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_d:
-			bit_set(registers.d, 1);
+			bit_set(registers_.d, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_e:
-			bit_set(registers.e, 1);
+			bit_set(registers_.e, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_h:
-			bit_set(registers.h, 1);
+			bit_set(registers_.h, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_l:
-			bit_set(registers.l, 1);
+			bit_set(registers_.l, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_1_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 1);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_1_a:
-			bit_set(registers.a, 1);
+			bit_set(registers_.a, 1);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_b:
-			bit_set(registers.b, 2);
+			bit_set(registers_.b, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_c:
-			bit_set(registers.c, 2);
+			bit_set(registers_.c, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_d:
-			bit_set(registers.d, 2);
+			bit_set(registers_.d, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_e:
-			bit_set(registers.e, 2);
+			bit_set(registers_.e, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_h:
-			bit_set(registers.h, 2);
+			bit_set(registers_.h, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_l:
-			bit_set(registers.l, 2);
+			bit_set(registers_.l, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_2_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 2);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_2_a:
-			bit_set(registers.a, 2);
+			bit_set(registers_.a, 2);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_b:
-			bit_set(registers.b, 3);
+			bit_set(registers_.b, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_c:
-			bit_set(registers.c, 3);
+			bit_set(registers_.c, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_d:
-			bit_set(registers.d, 3);
+			bit_set(registers_.d, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_e:
-			bit_set(registers.e, 3);
+			bit_set(registers_.e, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_h:
-			bit_set(registers.h, 3);
+			bit_set(registers_.h, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_l:
-			bit_set(registers.l, 3);
+			bit_set(registers_.l, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_3_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 3);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_3_a:
-			bit_set(registers.a, 3);
+			bit_set(registers_.a, 3);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_b:
-			bit_set(registers.b, 4);
+			bit_set(registers_.b, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_c:
-			bit_set(registers.c, 4);
+			bit_set(registers_.c, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_d:
-			bit_set(registers.d, 4);
+			bit_set(registers_.d, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_e:
-			bit_set(registers.e, 4);
+			bit_set(registers_.e, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_h:
-			bit_set(registers.h, 4);
+			bit_set(registers_.h, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_l:
-			bit_set(registers.l, 4);
+			bit_set(registers_.l, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_4_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 4);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_4_a:
-			bit_set(registers.a, 4);
+			bit_set(registers_.a, 4);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_b:
-			bit_set(registers.b, 5);
+			bit_set(registers_.b, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_c:
-			bit_set(registers.c, 5);
+			bit_set(registers_.c, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_d:
-			bit_set(registers.d, 5);
+			bit_set(registers_.d, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_e:
-			bit_set(registers.e, 5);
+			bit_set(registers_.e, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_h:
-			bit_set(registers.h, 5);
+			bit_set(registers_.h, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_l:
-			bit_set(registers.l, 5);
+			bit_set(registers_.l, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_5_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 5);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_5_a:
-			bit_set(registers.a, 5);
+			bit_set(registers_.a, 5);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_b:
-			bit_set(registers.b, 6);
+			bit_set(registers_.b, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_c:
-			bit_set(registers.c, 6);
+			bit_set(registers_.c, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_d:
-			bit_set(registers.d, 6);
+			bit_set(registers_.d, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_e:
-			bit_set(registers.e, 6);
+			bit_set(registers_.e, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_h:
-			bit_set(registers.h, 6);
+			bit_set(registers_.h, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_l:
-			bit_set(registers.l, 6);
+			bit_set(registers_.l, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_6_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 6);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_6_a:
-			bit_set(registers.a, 6);
+			bit_set(registers_.a, 6);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_b:
-			bit_set(registers.b, 7);
+			bit_set(registers_.b, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_c:
-			bit_set(registers.c, 7);
+			bit_set(registers_.c, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_d:
-			bit_set(registers.d, 7);
+			bit_set(registers_.d, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_e:
-			bit_set(registers.e, 7);
+			bit_set(registers_.e, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_h:
-			bit_set(registers.h, 7);
+			bit_set(registers_.h, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_l:
-			bit_set(registers.l, 7);
+			bit_set(registers_.l, 7);
 			pc += 2;
 			cycles = 8;
 			break;
 		case Prefix_CB::set_7_hl:
 		{
-			uint8_t val = mmu->read_byte(registers.hl);
+			uint8_t val = mmu->read_byte(registers_.hl);
 			bit_set(val, 7);
-			mmu->write_byte(registers.hl, val);
+			mmu->write_byte(registers_.hl, val);
 			pc += 2;
 			cycles = 16;
 			break;
 		}
 		case Prefix_CB::set_7_a:
-			bit_set(registers.a, 7);
+			bit_set(registers_.a, 7);
 			pc += 2;
 			cycles = 8;
 			break;
@@ -1587,413 +1588,413 @@ uint8_t CPU::step()
 		break;
 		// 8 bit loads
 	case Instruction::ld_b_d8:
-		registers.b = mmu->read_byte(pc + 1);
+		registers_.b = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_c_d8: // LD C,n
-		registers.c = mmu->read_byte(pc + 1);
+		registers_.c = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_d_d8: // LD D,n
-		registers.d = mmu->read_byte(pc + 1);
+		registers_.d = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_e_d8: // LD E,n
-		registers.e = mmu->read_byte(pc + 1);
+		registers_.e = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_h_d8: // LD H,n
-		registers.h = mmu->read_byte(pc + 1);
+		registers_.h = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_l_d8: // LD L,n
-		registers.l = mmu->read_byte(pc + 1);
+		registers_.l = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_a:
 		// ??
-		registers.a = registers.a;
+		registers_.a = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_b:
-		registers.a = registers.b;
+		registers_.a = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_c:
-		registers.a = registers.c;
+		registers_.a = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_d:
-		registers.a = registers.d;
+		registers_.a = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_e:
-		registers.a = registers.e;
+		registers_.a = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_h:
-		registers.a = registers.h;
+		registers_.a = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_l:
-		registers.a = registers.l;
+		registers_.a = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_a_bc:
-		registers.a = mmu->read_byte(registers.bc);
+		registers_.a = mmu->read_byte(registers_.bc);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_de:
-		registers.a = mmu->read_byte(registers.de);
+		registers_.a = mmu->read_byte(registers_.de);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_at_hl:
-		registers.a = mmu->read_byte(registers.hl);
+		registers_.a = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a_a16:
 	{
 		uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
-		registers.a = mmu->read_byte(address);
+		registers_.a = mmu->read_byte(address);
 		pc += 3;
 		cycles = 16;
 		break;
 	}
 	case Instruction::ld_b_a:
-		registers.b = registers.a;
+		registers_.b = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_b:
-		registers.b = registers.b;
+		registers_.b = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_c:
-		registers.b = registers.c;
+		registers_.b = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_d:
-		registers.b = registers.d;
+		registers_.b = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_e:
-		registers.b = registers.e;
+		registers_.b = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_h:
-		registers.b = registers.h;
+		registers_.b = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_l:
-		registers.b = registers.l;
+		registers_.b = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_b_hl:
-		registers.b = mmu->read_byte(registers.hl);
+		registers_.b = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_c_a:
-		registers.c = registers.a;
+		registers_.c = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_b:
-		registers.c = registers.b;
+		registers_.c = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_c:
-		registers.c = registers.c;
+		registers_.c = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_d:
-		registers.c = registers.d;
+		registers_.c = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_e:
-		registers.c = registers.e;
+		registers_.c = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_h:
-		registers.c = registers.h;
+		registers_.c = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_l:
-		registers.c = registers.l;
+		registers_.c = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_c_hl:
-		registers.c = mmu->read_byte(registers.hl);
+		registers_.c = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_d_a:
-		registers.d = registers.a;
+		registers_.d = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_b:
-		registers.d = registers.b;
+		registers_.d = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_c:
-		registers.d = registers.c;
+		registers_.d = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_d:
-		registers.d = registers.d;
+		registers_.d = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_e:
-		registers.d = registers.e;
+		registers_.d = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_h:
-		registers.d = registers.h;
+		registers_.d = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_l:
-		registers.d = registers.l;
+		registers_.d = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_d_hl:
-		registers.d = mmu->read_byte(registers.hl);
+		registers_.d = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_e_a:
-		registers.e = registers.a;
+		registers_.e = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_b:
-		registers.e = registers.b;
+		registers_.e = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_c:
-		registers.e = registers.c;
+		registers_.e = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_d:
-		registers.e = registers.d;
+		registers_.e = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_e:
-		registers.e = registers.e;
+		registers_.e = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_h:
-		registers.e = registers.h;
+		registers_.e = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_l:
-		registers.e = registers.l;
+		registers_.e = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_e_hl:
-		registers.e = mmu->read_byte(registers.hl);
+		registers_.e = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_h_a:
-		registers.h = registers.a;
+		registers_.h = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_b:
-		registers.h = registers.b;
+		registers_.h = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_c:
-		registers.h = registers.c;
+		registers_.h = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_d:
-		registers.h = registers.d;
+		registers_.h = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_e:
-		registers.h = registers.e;
+		registers_.h = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_h:
-		registers.h = registers.h;
+		registers_.h = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_l:
-		registers.h = registers.l;
+		registers_.h = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_h_hl:
-		registers.h = mmu->read_byte(registers.hl);
+		registers_.h = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_l_a:
-		registers.l = registers.a;
+		registers_.l = registers_.a;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_b:
-		registers.l = registers.b;
+		registers_.l = registers_.b;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_c:
-		registers.l = registers.c;
+		registers_.l = registers_.c;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_d:
-		registers.l = registers.d;
+		registers_.l = registers_.d;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_e:
-		registers.l = registers.e;
+		registers_.l = registers_.e;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_h:
-		registers.l = registers.h;
+		registers_.l = registers_.h;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_l:
-		registers.l = registers.l;
+		registers_.l = registers_.l;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ld_l_hl:
-		registers.l = mmu->read_byte(registers.hl);
+		registers_.l = mmu->read_byte(registers_.hl);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_a16_a:
 	{
 		uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
-		mmu->write_byte(address, registers.a);
+		mmu->write_byte(address, registers_.a);
 		cycles = 16;
 		pc += 3;
 		break;
 	}
 	case Instruction::ldd_hl_a: // ld (HL-), A
 	{
-		mmu->write_byte(registers.hl, registers.a);
-		--registers.hl;
+		mmu->write_byte(registers_.hl, registers_.a);
+		--registers_.hl;
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::ld_a_d8: // ld A, #
-		registers.a = mmu->read_byte(pc + 1);
+		registers_.a = mmu->read_byte(pc + 1);
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::ld_at_c_a: // ld (C), a
 	{
 		// TODO: check this
-		uint16_t address = 0xFF00 + registers.c;
-		mmu->write_byte(address, registers.a);
+		uint16_t address = 0xFF00 + registers_.c;
+		mmu->write_byte(address, registers_.a);
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::ld_bc_a:
-		mmu->write_byte(registers.bc, registers.a);
+		mmu->write_byte(registers_.bc, registers_.a);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_de_a:
-		mmu->write_byte(registers.de, registers.a);
+		mmu->write_byte(registers_.de, registers_.a);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_a:
-		mmu->write_byte(registers.hl, registers.a);
+		mmu->write_byte(registers_.hl, registers_.a);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_b:
-		mmu->write_byte(registers.hl, registers.b);
+		mmu->write_byte(registers_.hl, registers_.b);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_c:
-		mmu->write_byte(registers.hl, registers.c);
+		mmu->write_byte(registers_.hl, registers_.c);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_d:
-		mmu->write_byte(registers.hl, registers.d);
+		mmu->write_byte(registers_.hl, registers_.d);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_e:
-		mmu->write_byte(registers.hl, registers.e);
+		mmu->write_byte(registers_.hl, registers_.e);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_h:
-		mmu->write_byte(registers.hl, registers.h);
+		mmu->write_byte(registers_.hl, registers_.h);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_l:
-		mmu->write_byte(registers.hl, registers.l);
+		mmu->write_byte(registers_.hl, registers_.l);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ldh_a8_a:
 	{
 		uint16_t address = 0xFF00 + mmu->read_byte(pc + 1);
-		mmu->write_byte(address, registers.a);
+		mmu->write_byte(address, registers_.a);
 		pc += 2;
 		cycles = 12;
 		break;
@@ -2001,33 +2002,33 @@ uint8_t CPU::step()
 	case Instruction::ldh_a_a8:
 	{
 		uint16_t address = 0xFF00 + mmu->read_byte(pc + 1);
-		registers.a = mmu->read_byte(address);
+		registers_.a = mmu->read_byte(address);
 		pc += 2;
 		cycles = 12;
 		break;
 	}
 	case Instruction::ldi_hl_a:
-		mmu->write_byte(registers.hl, registers.a);
-		++registers.hl;
+		mmu->write_byte(registers_.hl, registers_.a);
+		++registers_.hl;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ld_hl_d8:
 	{
 		uint8_t val = mmu->read_byte(pc + 1);
-		mmu->write_byte(registers.hl, val);
+		mmu->write_byte(registers_.hl, val);
 		pc += 2;
 		cycles = 12;
 		break;
 	}
 	case Instruction::ldi_a_hl:
-		registers.a = mmu->read_byte(registers.hl);
-		++registers.hl;
+		registers_.a = mmu->read_byte(registers_.hl);
+		++registers_.hl;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::ldd_a_hl:
-		registers.a = mmu->read_byte(registers.hl--);
+		registers_.a = mmu->read_byte(registers_.hl--);
 		++pc;
 		cycles = 8;
 		break;
@@ -2047,96 +2048,96 @@ uint8_t CPU::step()
 		cycles = 12;
 		break;
 	case Instruction::ld_bc_d16:
-		registers.bc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
+		registers_.bc = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
 	case Instruction::ld_hl_d16:
-		registers.h = mmu->read_byte(pc + 2);
-		registers.l = mmu->read_byte(pc + 1);
+		registers_.h = mmu->read_byte(pc + 2);
+		registers_.l = mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
 	case Instruction::ld_de_d16:
-		registers.d = mmu->read_byte(pc + 2);
-		registers.e = mmu->read_byte(pc + 1);
+		registers_.d = mmu->read_byte(pc + 2);
+		registers_.e = mmu->read_byte(pc + 1);
 		pc += 3;
 		cycles = 12;
 		break;
 	case Instruction::push_af:
 		// since we don't use the bits of the F register
-		// and we need to save the flags state, set them now
-		flags.z ? set_z() : reset_z();
-		flags.n ? set_n() : reset_n();
-		flags.h ? set_h() : reset_h();
-		flags.c ? set_c() : reset_c();
+		// and we need to save the flags_ state, set them now
+		flags_.z ? set_z() : reset_z();
+		flags_.n ? set_n() : reset_n();
+		flags_.h ? set_h() : reset_h();
+		flags_.c ? set_c() : reset_c();
 		// reset unused bits 0 - 3
-		bitmask_clear(registers.f, 0x0F);
+		bitmask_clear(registers_.f, 0x0F);
 
 		sp -= 1;
-		mmu->write_byte(sp, registers.a);
+		mmu->write_byte(sp, registers_.a);
 		sp -= 1;
-		mmu->write_byte(sp, registers.f);
+		mmu->write_byte(sp, registers_.f);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_bc:
 		sp -= 1;
-		mmu->write_byte(sp, registers.b);
+		mmu->write_byte(sp, registers_.b);
 		sp -= 1;
-		mmu->write_byte(sp, registers.c);
+		mmu->write_byte(sp, registers_.c);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_de:
 		sp -= 1;
-		mmu->write_byte(sp, registers.d);
+		mmu->write_byte(sp, registers_.d);
 		sp -= 1;
-		mmu->write_byte(sp, registers.e);
+		mmu->write_byte(sp, registers_.e);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::push_hl:
 		sp -= 1;
-		mmu->write_byte(sp, registers.h);
+		mmu->write_byte(sp, registers_.h);
 		sp -= 1;
-		mmu->write_byte(sp, registers.l);
+		mmu->write_byte(sp, registers_.l);
 		++pc;
 		cycles = 16;
 		break;
 	case Instruction::pop_af:
-		registers.f = mmu->read_byte(sp);
+		registers_.f = mmu->read_byte(sp);
 		++sp;
-		registers.a = mmu->read_byte(sp);
+		registers_.a = mmu->read_byte(sp);
 		++sp;
-		// reset our flags
-		bit_check(registers.f, 7) ? flags.z = true : flags.z = false;
-		bit_check(registers.f, 6) ? flags.n = true : flags.n = false;
-		bit_check(registers.f, 5) ? flags.h = true : flags.h = false;
-		bit_check(registers.f, 4) ? flags.c = true : flags.c = false;
+		// reset our flags_
+		bit_check(registers_.f, 7) ? flags_.z = true : flags_.z = false;
+		bit_check(registers_.f, 6) ? flags_.n = true : flags_.n = false;
+		bit_check(registers_.f, 5) ? flags_.h = true : flags_.h = false;
+		bit_check(registers_.f, 4) ? flags_.c = true : flags_.c = false;
 
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_bc:
-		registers.c = mmu->read_byte(sp);
+		registers_.c = mmu->read_byte(sp);
 		++sp;
-		registers.b = mmu->read_byte(sp);
+		registers_.b = mmu->read_byte(sp);
 		++sp;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_de:
-		registers.e = mmu->read_byte(sp);
+		registers_.e = mmu->read_byte(sp);
 		++sp;
-		registers.d = mmu->read_byte(sp);
+		registers_.d = mmu->read_byte(sp);
 		++sp;
 		++pc;
 		cycles = 12;
 		break;
 	case Instruction::pop_hl:
-		registers.l = mmu->read_byte(sp++);
-		registers.h = mmu->read_byte(sp++);
+		registers_.l = mmu->read_byte(sp++);
+		registers_.h = mmu->read_byte(sp++);
 		++pc;
 		cycles = 12;
 		break;
@@ -2144,132 +2145,132 @@ uint8_t CPU::step()
 	{
 		// Add the signed value R8 to SP and store the result in HL.
 		int8_t offset = mmu->read_byte(pc + 1);
-		registers.hl = sp + offset;
+		registers_.hl = sp + offset;
 		// carry and half carry are computed on the lower 8 bits
-		// #TODO: verify carry!
-		(sp ^ offset ^ registers.hl) & 0x10 ? flags.h = true : flags.h = false;
-		(sp ^ offset ^ registers.hl) & 0x100 ? flags.c = true : flags.c = false;
-		flags.z = false;
-		flags.n = false;
+		// TODO: verify carry!
+		(sp ^ offset ^ registers_.hl) & 0x10 ? flags_.h = true : flags_.h = false;
+		(sp ^ offset ^ registers_.hl) & 0x100 ? flags_.c = true : flags_.c = false;
+		flags_.z = false;
+		flags_.n = false;
 		pc += 2;
 		cycles = 12;
 		break;
 	}
 	case Instruction::ld_sp_hl:
-		sp = registers.hl;
+		sp = registers_.hl;
 		cycles = 8;
 		++pc;
 		break;
 	// 8 bit ALU
 	case Instruction::add_a_a:
 	{
-		uint16_t res = registers.a + registers.a;
+		uint16_t res = registers_.a + registers_.a;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.a ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_b:
 	{
-		uint16_t res = registers.a + registers.b;
+		uint16_t res = registers_.a + registers_.b;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.b ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_c:
 	{
-		uint16_t res = registers.a + registers.c;
+		uint16_t res = registers_.a + registers_.c;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.c ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_d:
 	{
-		uint16_t res = registers.a + registers.d;
+		uint16_t res = registers_.a + registers_.d;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.d ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_e:
 	{
-		uint16_t res = registers.a + registers.e;
+		uint16_t res = registers_.a + registers_.e;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.e ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_h:
 	{
-		uint16_t res = registers.a + registers.h;
+		uint16_t res = registers_.a + registers_.h;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.h ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_l:
 	{
-		uint16_t res = registers.a + registers.l;
+		uint16_t res = registers_.a + registers_.l;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.l ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::add_a_hl:
 	{
-		uint8_t value = mmu->read_byte(registers.hl);
-		uint16_t res = registers.a + value;
+		uint8_t value = mmu->read_byte(registers_.hl);
+		uint16_t res = registers_.a + value;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 8;
 		break;
@@ -2277,17 +2278,17 @@ uint8_t CPU::step()
 	case Instruction::add_a_d8:
 	{
 		uint8_t value = mmu->read_byte(pc + 1);
-		uint16_t res = registers.a + value;
+		uint16_t res = registers_.a + value;
 
 		// test only the lower 8 bits, otherwise we'll get a wrong result if
 		// there's a carry. This applies to every instruction we used a 16bit
 		// container for the 8 bit result
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		pc += 2;
 		cycles = 8;
 		break;
@@ -2297,11 +2298,11 @@ uint8_t CPU::step()
 		int8_t value = mmu->read_byte(pc + 1);
 		uint16_t res = sp + value;
 
-		//(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		flags.z = false;
-		(sp ^ value ^ res) & 0x100 ? flags.c = true : flags.c = false; // bit 7
-		(sp ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false; // bit 3
-		flags.n = false;
+		//(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		flags_.z = false;
+		(sp ^ value ^ res) & 0x100 ? flags_.c = true : flags_.c = false; // bit 7
+		(sp ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false; // bit 3
+		flags_.n = false;
 
 		sp = res;
 		pc += 2;
@@ -2311,16 +2312,16 @@ uint8_t CPU::step()
 	case Instruction::adc_a_a:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.a + flags.c;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.a + flags_.c;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.a ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
@@ -2328,16 +2329,16 @@ uint8_t CPU::step()
 	case Instruction::adc_a_b:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.b + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.b + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.b ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
@@ -2345,16 +2346,16 @@ uint8_t CPU::step()
 	case Instruction::adc_a_c:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.c + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.c + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.c ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
@@ -2362,16 +2363,16 @@ uint8_t CPU::step()
 	case Instruction::adc_a_d:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.d + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.d + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.d ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
@@ -2379,16 +2380,16 @@ uint8_t CPU::step()
 	case Instruction::adc_a_e:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.e + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.e + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.e ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
@@ -2396,34 +2397,34 @@ uint8_t CPU::step()
 	case Instruction::adc_a_h:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.h + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.h + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.h ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::adc_a_hl:
 	{
-		uint8_t value = mmu->read_byte(registers.hl);
+		uint8_t value = mmu->read_byte(registers_.hl);
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + value + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + value + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 8;
 		break;
@@ -2431,16 +2432,16 @@ uint8_t CPU::step()
 	case Instruction::adc_a_l:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + registers.l + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + registers_.l + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		// #TODO: Verify
-		(registers.a ^ registers.l ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		// TODO: Verify
+		(registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		++pc;
 		cycles = 4;
 		break;
@@ -2449,16 +2450,16 @@ uint8_t CPU::step()
 	{
 		uint8_t value = mmu->read_byte(pc + 1);
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint16_t res = registers.a + value + carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint16_t res = registers_.a + value + carry;
 
-		(res & 0xFF) == 0 ? flags.z = true : flags.z = false;
-		res > UINT8_MAX ? flags.c = true : flags.c = false;
-		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		// #TODO: fix/verify half carry flag
-		flags.n = false;
+		(res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
+		res > UINT8_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		// TODO: fix/verify half carry flag
+		flags_.n = false;
 
-		registers.a = static_cast<uint8_t>(res);
+		registers_.a = static_cast<uint8_t>(res);
 		pc += 2;
 		cycles = 8;
 		break;
@@ -2467,16 +2468,16 @@ uint8_t CPU::step()
 	{
 		uint8_t value = mmu->read_byte(pc + 1);
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - value - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - value - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		value + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		value + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		pc += 2;
 		cycles = 8;
 		break;
@@ -2484,16 +2485,16 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_a:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.a - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.a - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.a + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.a ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.a + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
@@ -2501,16 +2502,16 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_b:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.b - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.b - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.b + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.b ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.b + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
@@ -2518,16 +2519,16 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_c:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.c - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.c - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.c + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.c ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.c + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
@@ -2535,16 +2536,16 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_d:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.d - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.d - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.d + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.d ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.d + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
@@ -2552,16 +2553,16 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_e:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.e - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.e - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.e + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.e ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.e + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
@@ -2569,16 +2570,16 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_h:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.h - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.h - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.h + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.h ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.h + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
@@ -2586,125 +2587,125 @@ uint8_t CPU::step()
 	case Instruction::sbc_a_l:
 	{
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - registers.l - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - registers_.l - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.l + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.l ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.l + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sbc_a_hl:
 	{
-		uint8_t value = mmu->read_byte(registers.hl);
+		uint8_t value = mmu->read_byte(registers_.hl);
 		uint8_t carry;
-		flags.c == true ? carry = 1U : carry = 0U;
-		uint8_t res = registers.a - value - carry;
+		flags_.c == true ? carry = 1U : carry = 0U;
+		uint8_t res = registers_.a - value - carry;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		value + carry > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ value ^ res) & 0x10 ? flags.h = true : flags.h = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		value + carry > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
 
-		flags.n = true;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		pc += 2;
 		cycles = 8;
 		break;
 	}
 	case Instruction::and_d8:
-		registers.a &= mmu->read_byte(pc + 1);
+		registers_.a &= mmu->read_byte(pc + 1);
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::and_a:
-		registers.a &= registers.a;
+		registers_.a &= registers_.a;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_b:
-		registers.a &= registers.b;
+		registers_.a &= registers_.b;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_c:
-		registers.a &= registers.c;
+		registers_.a &= registers_.c;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_d:
-		registers.a &= registers.d;
+		registers_.a &= registers_.d;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_e:
-		registers.a &= registers.e;
+		registers_.a &= registers_.e;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_h:
-		registers.a &= registers.h;
+		registers_.a &= registers_.h;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_l:
-		registers.a &= registers.l;
+		registers_.a &= registers_.l;
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::and_hl:
-		registers.a &= mmu->read_byte(registers.hl);
+		registers_.a &= mmu->read_byte(registers_.hl);
 
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.n = false;
-		flags.c = false;
-		flags.h = true;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = false;
+		flags_.c = false;
+		flags_.h = true;
 		pc += 2;
 		cycles = 8;
 		break;
@@ -2712,412 +2713,412 @@ uint8_t CPU::step()
 	case Instruction::sub_d8:
 	{
 		uint8_t val = mmu->read_byte(pc + 1);
-		uint8_t res = registers.a - val;
+		uint8_t res = registers_.a - val;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		val > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ val ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		val > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		pc += 2;
 		cycles = 8;
 		break;
 	}
 	case Instruction::sub_a:
 	{
-		uint8_t res = registers.a - registers.a;
+		uint8_t res = registers_.a - registers_.a;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		//registers.a > registers.a ? flags.c = true : flags.c = false;
-		//(registers.a ^ registers.a ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		//registers_.a > registers_.a ? flags_.c = true : flags_.c = false;
+		//(registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_b:
 	{
-		uint8_t res = registers.a - registers.b;
+		uint8_t res = registers_.a - registers_.b;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.b > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.b ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.b > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_c:
 	{
-		uint8_t res = registers.a - registers.c;
+		uint8_t res = registers_.a - registers_.c;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.c > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.c ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.c > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_d:
 	{
-		uint8_t res = registers.a - registers.d;
+		uint8_t res = registers_.a - registers_.d;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.d > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.d ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.d > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_e:
 	{
-		uint8_t res = registers.a - registers.e;
+		uint8_t res = registers_.a - registers_.e;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.e > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.e ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.e > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_h:
 	{
-		uint8_t res = registers.a - registers.h;
+		uint8_t res = registers_.a - registers_.h;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.h > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.h ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.h > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_l:
 	{
-		uint8_t res = registers.a - registers.l;
+		uint8_t res = registers_.a - registers_.l;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		registers.l > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ registers.l ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		registers_.l > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::sub_hl:
 	{
-		uint8_t val = mmu->read_byte(registers.hl);
-		uint8_t res = registers.a - val;
+		uint8_t val = mmu->read_byte(registers_.hl);
+		uint8_t res = registers_.a - val;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		val > registers.a ? flags.c = true : flags.c = false;
-		(registers.a ^ val ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		val > registers_.a ? flags_.c = true : flags_.c = false;
+		(registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_a:
-		registers.a ^= registers.a;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a ^= registers_.a;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::xor_b:
-		registers.a ^= registers.b;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a ^= registers_.b;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::xor_c:
 	{
-		uint8_t res = registers.a ^ registers.c;
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
-		registers.a = res;
+		uint8_t res = registers_.a ^ registers_.c;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_d:
 	{
-		uint8_t res = registers.a ^ registers.d;
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
-		registers.a = res;
+		uint8_t res = registers_.a ^ registers_.d;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_e:
 	{
-		uint8_t res = registers.a ^ registers.e;
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
-		registers.a = res;
+		uint8_t res = registers_.a ^ registers_.e;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_h:
 	{
-		uint8_t res = registers.a ^ registers.h;
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
-		registers.a = res;
+		uint8_t res = registers_.a ^ registers_.h;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_l:
 	{
-		uint8_t res = registers.a ^ registers.l;
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
-		registers.a = res;
+		uint8_t res = registers_.a ^ registers_.l;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::xor_hl:
-		registers.a ^= mmu->read_byte(registers.hl);
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a ^= mmu->read_byte(registers_.hl);
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::xor_d8:
-		registers.a ^= mmu->read_byte(pc + 1);
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a ^= mmu->read_byte(pc + 1);
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::or_a:
-		registers.a |= registers.a;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.a;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_b:
-		registers.a |= registers.b;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.b;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_c:
-		registers.a |= registers.c;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.c;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_d:
-		registers.a |= registers.d;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.d;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_e:
-		registers.a |= registers.e;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.e;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_h:
-		registers.a |= registers.h;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.h;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_l:
-		registers.a |= registers.l;
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= registers_.l;
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::or_hl:
-		registers.a |= mmu->read_byte(registers.hl);
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= mmu->read_byte(registers_.hl);
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::or_d8:
-		registers.a |= mmu->read_byte(pc + 1);
-		registers.a == 0 ? flags.z = true : flags.z = false;
-		flags.c = false;
-		flags.h = false;
-		flags.n = false;
+		registers_.a |= mmu->read_byte(pc + 1);
+		registers_.a == 0 ? flags_.z = true : flags_.z = false;
+		flags_.c = false;
+		flags_.h = false;
+		flags_.n = false;
 		pc += 2;
 		cycles = 8;
 		break;
 	case Instruction::inc_a:
 	{
-		uint8_t res = registers.a + 1;
+		uint8_t res = registers_.a + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_b:
 	{
-		uint8_t res = registers.b + 1;
+		uint8_t res = registers_.b + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.b ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.b ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.b = res;
+		registers_.b = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_c:
 	{
-		uint8_t res = registers.c + 1;
+		uint8_t res = registers_.c + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.c ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.c ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.c = res;
+		registers_.c = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_d:
 	{
-		uint8_t res = registers.d + 1;
+		uint8_t res = registers_.d + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.d ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.d ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.d = res;
+		registers_.d = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_e:
 	{
-		uint8_t res = registers.e + 1;
+		uint8_t res = registers_.e + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.e ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.e ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.e = res;
+		registers_.e = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_h:
 	{
-		uint8_t res = registers.h + 1;
+		uint8_t res = registers_.h + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.h ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.h ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.h = res;
+		registers_.h = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_l:
 	{
-		uint8_t res = registers.l + 1;
+		uint8_t res = registers_.l + 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.l ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.l ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.l = res;
+		registers_.l = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::inc_at_hl:
 	{
-		uint8_t val = mmu->read_byte(registers.hl);
+		uint8_t val = mmu->read_byte(registers_.hl);
 		uint8_t res = val + 1;
-		mmu->write_byte(registers.hl, res);
+		mmu->write_byte(registers_.hl, res);
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(val ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(val ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
 		++pc;
 		cycles = 12;
@@ -3125,103 +3126,103 @@ uint8_t CPU::step()
 	}
 	case Instruction::dec_a:
 	{
-		uint8_t res = registers.a - 1;
+		uint8_t res = registers_.a - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.a = res;
+		registers_.a = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_b:
 	{
-		uint8_t res = registers.b - 1;
+		uint8_t res = registers_.b - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.b ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.b ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.b = res;
+		registers_.b = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_c:
 	{
-		uint8_t res = registers.c - 1;
+		uint8_t res = registers_.c - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.c ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.c ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.c = res;
+		registers_.c = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_d:
 	{
-		uint8_t res = registers.d - 1;
+		uint8_t res = registers_.d - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.d ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.d ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.d = res;
+		registers_.d = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_e:
 	{
-		uint8_t res = registers.e - 1;
+		uint8_t res = registers_.e - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.e ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.e ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.e = res;
+		registers_.e = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_h:
 	{
-		uint8_t res = registers.h - 1;
+		uint8_t res = registers_.h - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.h ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.h ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.h = res;
+		registers_.h = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_l:
 	{
-		uint8_t res = registers.l - 1;
+		uint8_t res = registers_.l - 1;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.l ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.l ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
-		registers.l = res;
+		registers_.l = res;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::dec_at_hl:
 	{
-		uint8_t val = mmu->read_byte(registers.hl);
+		uint8_t val = mmu->read_byte(registers_.hl);
 		uint8_t res = val - 1;
-		mmu->write_byte(registers.hl, res);
-		res == 0 ? flags.z = true : flags.z = false;
-		(val ^ 1 ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		flags.n = true;
+		mmu->write_byte(registers_.hl, res);
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(val ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 12;
@@ -3229,12 +3230,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_a:
 	{
-		uint8_t res = registers.a - registers.a;
+		uint8_t res = registers_.a - registers_.a;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.a ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.a > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.a > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3242,12 +3243,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_b:
 	{
-		uint8_t res = registers.a - registers.b;
+		uint8_t res = registers_.a - registers_.b;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.b ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.b > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.b > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3255,12 +3256,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_c:
 	{
-		uint8_t res = registers.a - registers.c;
+		uint8_t res = registers_.a - registers_.c;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.c ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.c > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.c > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3268,12 +3269,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_d:
 	{
-		uint8_t res = registers.a - registers.d;
+		uint8_t res = registers_.a - registers_.d;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.d ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.d > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.d > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3281,12 +3282,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_e:
 	{
-		uint8_t res = registers.a - registers.e;
+		uint8_t res = registers_.a - registers_.e;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.e ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.e > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.e > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3294,12 +3295,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_h:
 	{
-		uint8_t res = registers.a - registers.h;
+		uint8_t res = registers_.a - registers_.h;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.h ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.h > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.h > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3307,12 +3308,12 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_l:
 	{
-		uint8_t res = registers.a - registers.l;
+		uint8_t res = registers_.a - registers_.l;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ registers.l ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		registers.l > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		registers_.l > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		++pc;
 		cycles = 4;
@@ -3321,12 +3322,12 @@ uint8_t CPU::step()
 	case Instruction::cp_d8:
 	{
 		uint8_t val = mmu->read_byte(pc + 1);
-		uint8_t res = registers.a - val;
+		uint8_t res = registers_.a - val;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		(registers.a ^ val ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		val > registers.a ? flags.c = true : flags.c = false;
-		flags.n = true;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		(registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		val > registers_.a ? flags_.c = true : flags_.c = false;
+		flags_.n = true;
 
 		pc += 2;
 		cycles = 8;
@@ -3334,13 +3335,13 @@ uint8_t CPU::step()
 	}
 	case Instruction::cp_hl:
 	{
-		uint8_t val = mmu->read_byte(registers.hl);
-		uint8_t res = registers.a - val;
+		uint8_t val = mmu->read_byte(registers_.hl);
+		uint8_t res = registers_.a - val;
 
-		res == 0 ? flags.z = true : flags.z = false;
-		flags.n = true;
-		(registers.a ^ val ^ res) & 0x10 ? flags.h = true : flags.h = false;
-		val > registers.a ? flags.c = true : flags.c = false;
+		res == 0 ? flags_.z = true : flags_.z = false;
+		flags_.n = true;
+		(registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+		val > registers_.a ? flags_.c = true : flags_.c = false;
 
 		++pc;
 		cycles = 8;
@@ -3348,17 +3349,17 @@ uint8_t CPU::step()
 	}
 	// 16 bit arithmetic
 	case Instruction::inc_bc:
-		++registers.bc;
+		++registers_.bc;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::inc_de:
-		++registers.de;
+		++registers_.de;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::inc_hl:
-		++registers.hl;
+		++registers_.hl;
 		++pc;
 		cycles = 8;
 		break;
@@ -3368,17 +3369,17 @@ uint8_t CPU::step()
 		cycles = 8;
 		break;
 	case Instruction::dec_bc:
-		--registers.bc;
+		--registers_.bc;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::dec_de:
-		--registers.de;
+		--registers_.de;
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::dec_hl:
-		--registers.hl;
+		--registers_.hl;
 		++pc;
 		cycles = 8;
 		break;
@@ -3389,52 +3390,52 @@ uint8_t CPU::step()
 		break;
 	case Instruction::add_hl_bc:
 	{
-		uint32_t res = registers.hl + registers.bc;
+		uint32_t res = registers_.hl + registers_.bc;
 
-		res > UINT16_MAX ? flags.c = true : flags.c = false;
-		(registers.hl ^ registers.bc ^ res) & 0x1000 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res > UINT16_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.hl ^ registers_.bc ^ res) & 0x1000 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.hl = static_cast<uint16_t>(res);
+		registers_.hl = static_cast<uint16_t>(res);
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::add_hl_de:
 	{
-		uint32_t res = registers.hl + registers.de;
+		uint32_t res = registers_.hl + registers_.de;
 
-		res > UINT16_MAX ? flags.c = true : flags.c = false;
-		(registers.hl ^ registers.de ^ res) & 0x1000 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res > UINT16_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.hl ^ registers_.de ^ res) & 0x1000 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.hl = static_cast<uint16_t>(res);
+		registers_.hl = static_cast<uint16_t>(res);
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::add_hl_hl:
 	{
-		uint32_t res = registers.hl + registers.hl;
+		uint32_t res = registers_.hl + registers_.hl;
 
-		res > UINT16_MAX ? flags.c = true : flags.c = false;
-		(registers.hl ^ registers.hl ^ res) & 0x1000 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res > UINT16_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.hl ^ registers_.hl ^ res) & 0x1000 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.hl = static_cast<uint16_t>(res);
+		registers_.hl = static_cast<uint16_t>(res);
 		++pc;
 		cycles = 8;
 		break;
 	}
 	case Instruction::add_hl_sp:
 	{
-		uint32_t res = registers.hl + sp;
+		uint32_t res = registers_.hl + sp;
 
-		res > UINT16_MAX ? flags.c = true : flags.c = false;
-		(registers.hl ^ sp ^ res) & 0x1000 ? flags.h = true : flags.h = false;
-		flags.n = false;
+		res > UINT16_MAX ? flags_.c = true : flags_.c = false;
+		(registers_.hl ^ sp ^ res) & 0x1000 ? flags_.h = true : flags_.h = false;
+		flags_.n = false;
 
-		registers.hl = static_cast<uint16_t>(res);
+		registers_.hl = static_cast<uint16_t>(res);
 		++pc;
 		cycles = 8;
 		break;
@@ -3450,7 +3451,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::jp_z_a16:
 	{
-		if (flags.z) {
+		if (flags_.z) {
 			uint8_t c = mmu->read_byte(pc + 1);
 			uint8_t d = mmu->read_byte(pc + 2);
 			pc = (d << 8) + c;
@@ -3463,11 +3464,11 @@ uint8_t CPU::step()
 		break;
 	}
 	case Instruction::jp_hl:
-		pc = registers.hl;
+		pc = registers_.hl;
 		cycles = 16;
 		break;
 	case Instruction::jp_c_a16:
-		if (!flags.c) {
+		if (!flags_.c) {
 			pc += 3;
 			cycles = 12;
 		}
@@ -3477,7 +3478,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::jp_nc_a16:
-		if (flags.c) {
+		if (flags_.c) {
 			pc += 3;
 			cycles = 12;
 		}
@@ -3487,7 +3488,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::jp_nz_a16:
-		if (flags.z) {
+		if (flags_.z) {
 			pc += 3;
 			cycles = 12;
 		}
@@ -3502,7 +3503,7 @@ uint8_t CPU::step()
 		cycles = 12;
 		break;
 	case Instruction::jr_c_r8:
-		if (flags.c) {
+		if (flags_.c) {
 			pc += (int8_t)(mmu->read_byte(pc + 1) + 2);
 			cycles = 12;
 		}
@@ -3512,7 +3513,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::jr_nc_r8:
-		if (flags.c) {
+		if (flags_.c) {
 			pc += 2;
 			cycles = 8;
 		}
@@ -3523,7 +3524,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::jr_nz_r8:
-		if (flags.z) {
+		if (flags_.z) {
 			pc += 2;
 			cycles = 8;
 		}
@@ -3534,7 +3535,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::jr_z_r8:
-		if (flags.z) {
+		if (flags_.z) {
 			auto offset = (int8_t)mmu->read_byte(pc + 1);
 			pc += (2 + offset);
 			cycles = 12;
@@ -3547,48 +3548,48 @@ uint8_t CPU::step()
 	// Rotates and shifts
 	case Instruction::rla:
 	{
-		rl(registers.a);
+		rl(registers_.a);
 		// this instruction has a hardware bug
-		flags.z = false;
+		flags_.z = false;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::rra:
 	{
-		rr(registers.a);
+		rr(registers_.a);
 		// hardware bug
-		flags.z = false;
+		flags_.z = false;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::rrca:
 	{
-		uint8_t bit = bit_check(registers.a, 0);
-		registers.a >>= 1;
-		registers.a ^= (-bit ^ registers.a) & (1U << 7);
-		//flags.c = bit;
-		bit == 0 ? flags.c = false : flags.c = true;
+		uint8_t bit = bit_check(registers_.a, 0);
+		registers_.a >>= 1;
+		registers_.a ^= (-bit ^ registers_.a) & (1U << 7);
+		//flags_.c = bit;
+		bit == 0 ? flags_.c = false : flags_.c = true;
 		// unsure whether Z flag should be modified here
-		flags.z = false;
-		flags.n = false;
-		flags.h = false;
+		flags_.z = false;
+		flags_.n = false;
+		flags_.h = false;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::rlca:
 	{
-		uint8_t bit = bit_check(registers.a, 7);
-		registers.a <<= 1;
-		registers.a ^= (-bit ^ registers.a) & (1U << 0);
-		//flags.c = bit;
-		bit == 0 ? flags.c = false : flags.c = true;
+		uint8_t bit = bit_check(registers_.a, 7);
+		registers_.a <<= 1;
+		registers_.a ^= (-bit ^ registers_.a) & (1U << 0);
+		//flags_.c = bit;
+		bit == 0 ? flags_.c = false : flags_.c = true;
 		// unsure whether Z flag should be modified here
-		flags.z = false;
-		flags.n = false;
-		flags.h = false;
+		flags_.z = false;
+		flags_.n = false;
+		flags_.h = false;
 		++pc;
 		cycles = 4;
 		break;
@@ -3601,7 +3602,7 @@ uint8_t CPU::step()
 		cycles = 12;
 		break;
 	case Instruction::call_nz_a16:
-		if (!flags.z) {
+		if (!flags_.z) {
 			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			mmu->write_byte(--sp, (pc + 3) >> 8);
 			mmu->write_byte(--sp, pc + 3);
@@ -3614,7 +3615,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::call_z_a16:
-		if (flags.z) {
+		if (flags_.z) {
 			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			mmu->write_byte(--sp, (pc + 3) >> 8);
 			mmu->write_byte(--sp, pc + 3);
@@ -3627,7 +3628,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::call_nc_a16:
-		if (!flags.c) {
+		if (!flags_.c) {
 			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			mmu->write_byte(--sp, (pc + 3) >> 8);
 			mmu->write_byte(--sp, pc + 3);
@@ -3640,7 +3641,7 @@ uint8_t CPU::step()
 		}
 		break;
 	case Instruction::call_c_a16:
-		if (flags.c) {
+		if (flags_.c) {
 			uint16_t address = (mmu->read_byte(pc + 2) << 8) + mmu->read_byte(pc + 1);
 			mmu->write_byte(--sp, (pc + 3) >> 8);
 			mmu->write_byte(--sp, pc + 3);
@@ -3719,7 +3720,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ret_z:
 	{
-		if (flags.z) {
+		if (flags_.z) {
 			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
@@ -3732,7 +3733,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ret_nz:
 	{
-		if (!flags.z) {
+		if (!flags_.z) {
 			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
@@ -3744,7 +3745,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ret_c:
 	{
-		if (flags.c) {
+		if (flags_.c) {
 			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
@@ -3757,7 +3758,7 @@ uint8_t CPU::step()
 	}
 	case Instruction::ret_nc:
 	{
-		if (!flags.c) {
+		if (!flags_.c) {
 			pc = (mmu->read_byte(sp + 1) << 8) + mmu->read_byte(sp);
 			sp += 2;
 			cycles = 20;
@@ -3773,36 +3774,36 @@ uint8_t CPU::step()
 	{
 		//  Decimal adjust register A to get a correct BCD representation after an arithmetic instruction.
 		// add 6 or sub 6 if flag.n
-		if ((registers.a & 0x0F) > 0x09)
-			flags.n ? registers.a -= 0x06 : registers.a += 0x06;
-		// #TODO: carry stuff
+		if ((registers_.a & 0x0F) > 0x09)
+			flags_.n ? registers_.a -= 0x06 : registers_.a += 0x06;
+		// TODO: carry stuff
 		//throw;
 		++pc;
 		cycles = 4;
 		break;
 	}
 	case Instruction::ld_a_at_c:
-		registers.a = mmu->read_byte(0xFF00 + registers.c);
+		registers_.a = mmu->read_byte(0xFF00 + registers_.c);
 		++pc;
 		cycles = 8;
 		break;
 	case Instruction::cpl:
-		registers.a = ~registers.a;
-		flags.n = true;
-		flags.h = true;
+		registers_.a = ~registers_.a;
+		flags_.n = true;
+		flags_.h = true;
 		++pc;
 		break;
 	case Instruction::scf:
-		flags.c = true;
-		flags.n = false;
-		flags.h = false;
+		flags_.c = true;
+		flags_.n = false;
+		flags_.h = false;
 		++pc;
 		cycles = 4;
 		break;
 	case Instruction::ccf:
-		flags.c = !flags.c;
-		flags.n = false;
-		flags.h = false;
+		flags_.c = !flags_.c;
+		flags_.n = false;
+		flags_.h = false;
 		++pc;
 		cycles = 4;
 		break;
@@ -3821,7 +3822,7 @@ uint8_t CPU::step()
 	case Instruction::halt:
 	{
 		// suspend and wait for interrupts
-		// #TODO - Fix / Actually implement
+		// TODO - Fix / Actually implement
 		halted = true;
 		uint8_t ie = mmu->read_byte(IE);
 		uint8_t int_flag = mmu->read_byte(IF);
@@ -3863,13 +3864,13 @@ constexpr void CPU::rlc(uint8_t &reg)
 	// put the bit we shifted out back in the 0th position
 	reg ^= (-bit ^ reg) & (1U << 0);
 	// carry flag holds old bit 7
-	flags.c = bit;
+	flags_.c = bit;
 	// update Z flag
-	reg == 0 ? flags.z = true : flags.z = false;
+	reg == 0 ? flags_.z = true : flags_.z = false;
 	// reset subtract flag
-	flags.n = false;
+	flags_.n = false;
 	// reset half carry flag
-	flags.h = false;
+	flags_.h = false;
 }
 
 constexpr void CPU::rrc(uint8_t &reg)
@@ -3878,11 +3879,11 @@ constexpr void CPU::rrc(uint8_t &reg)
 	reg >>= 1;
 	// return the old 0th back to bit 7, and put our new bit in the carry
 	bit == 1U ? bit_set(reg, 7) : bit_clear(reg, 7);
-	//reg == 0 ? flags.z = true : flags.z = false;
-	flags.z = !reg;
-	flags.c = bit;
-	flags.h = false;
-	flags.n = false;
+	//reg == 0 ? flags_.z = true : flags_.z = false;
+	flags_.z = !reg;
+	flags_.c = bit;
+	flags_.h = false;
+	flags_.n = false;
 }
 
 /*     -----------------------v
@@ -3893,17 +3894,17 @@ constexpr void CPU::rl(uint8_t &reg)
 	uint8_t bit = bit_check(reg, 7);
 	reg <<= 1;
 	uint8_t carry = 0;
-	flags.c == true ? carry = 0x01 : carry = 0x00;
+	flags_.c == true ? carry = 0x01 : carry = 0x00;
 	// put the previous carry back in the 0th position
 	reg ^= (-carry ^ reg) & (1U << 0);
 	// carry flag holds old bit 7
-	bit == 1U ? flags.c = true : flags.c = false;
+	bit == 1U ? flags_.c = true : flags_.c = false;
 	// update Z flag
-	reg == 0 ? flags.z = true : flags.z = false;
+	reg == 0 ? flags_.z = true : flags_.z = false;
 	// reset subtract flag
-	flags.n = false;
+	flags_.n = false;
 	// reset half carry flag
-	flags.h = false;
+	flags_.h = false;
 }
 
 constexpr void CPU::srl(uint8_t &reg)
@@ -3911,10 +3912,10 @@ constexpr void CPU::srl(uint8_t &reg)
 	// shift right into carry
 	uint8_t bit = bit_check(reg, 0);
 	reg >>= 1;
-	bit == 0 ? flags.c = false : flags.c = true;
-	reg == 0 ? flags.z = true : flags.z = false;
-	flags.h = false;
-	flags.n = false;
+	bit == 0 ? flags_.c = false : flags_.c = true;
+	reg == 0 ? flags_.z = true : flags_.z = false;
+	flags_.h = false;
+	flags_.n = false;
 }
 
 /*	  *	v------------------------
@@ -3925,32 +3926,32 @@ constexpr void CPU::rr(uint8_t &reg)
 	uint8_t bit = bit_check(reg, 0);
 	reg >>= 1;
 	// return the old carry back to bit 7, and put our new bit in the carry
-	flags.c ? bit_set(reg, 7) : bit_clear(reg, 7);
-	reg == 0 ? flags.z = true : flags.z = false;
+	flags_.c ? bit_set(reg, 7) : bit_clear(reg, 7);
+	reg == 0 ? flags_.z = true : flags_.z = false;
 	// update carry with the new bit
-	bit == 0 ? flags.c = false : flags.c = true;
-	flags.h = false;
-	flags.n = false;
+	bit == 0 ? flags_.c = false : flags_.c = true;
+	flags_.h = false;
+	flags_.n = false;
 }
 
 constexpr void CPU::sla(uint8_t &reg)
 {
-	flags.c = bit_check(reg, 7);
+	flags_.c = bit_check(reg, 7);
 	reg <<= 1;
-	reg == 0 ? flags.z = true : flags.z = false;
-	flags.h = false;
-	flags.n = false;
+	reg == 0 ? flags_.z = true : flags_.z = false;
+	flags_.h = false;
+	flags_.n = false;
 }
 
 constexpr void CPU::sra(uint8_t &reg)
 {
 	uint8_t bit = bit_check(reg, 7);
-	flags.c = bit_check(reg, 0);
+	flags_.c = bit_check(reg, 0);
 	reg >>= 1;
 	reg ^= (-bit ^ reg) & (1U << 7);
-	reg == 0 ? flags.z = true : flags.z = false;
-	flags.h = false;
-	flags.n = false;
+	reg == 0 ? flags_.z = true : flags_.z = false;
+	flags_.h = false;
+	flags_.n = false;
 }
 
 constexpr void CPU::swap(uint8_t &reg)
@@ -3961,8 +3962,8 @@ constexpr void CPU::swap(uint8_t &reg)
 	reg &= 0xF0;
 	temp &= 0x0F;
 	reg |= temp;
-	reg == 0 ? flags.z = true : flags.z = false;
-	flags.n = false;
-	flags.h = false;
-	flags.c = false;
+	reg == 0 ? flags_.z = true : flags_.z = false;
+	flags_.n = false;
+	flags_.h = false;
+	flags_.c = false;
 }

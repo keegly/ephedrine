@@ -48,7 +48,7 @@ struct Registers
 class CPU {
 public:
 	// fetch decode execute
-	// talk to mmu for memory access
+	// talk to mmu_ for memory access
 	// returns previous opcode
 	CPU(std::shared_ptr<MMU> m);
 	uint8_t step();
@@ -58,13 +58,13 @@ public:
 	void print();
 	bool halted = false;
 	// for ui
-	const Registers get_registers() {
-		return this->registers;
+	const Registers get_registers() const {
+		return this->registers_;
 	}
-	Flags get_flags() {
-		return this->flags;
+	const Flags get_flags() const {
+		return this->flags_;
 	}
-	const CPU* get_state() {
+	const CPU* get_state() const {
 		return this;
 	}
 	uint16_t get_pc() const {
@@ -77,20 +77,20 @@ public:
 	friend OStream &operator<<(OStream &os, const CPU &c)
 	{
 		os << "registers: af: 0x" << std::hex << std::setw(4) << std::setfill('0')
-			<< c.registers.af << " bc: 0x" << std::setw(4) << std::setfill('0')
-			<< c.registers.bc << " de: 0x" << std::setw(4) << std::setfill('0')
-			<< c.registers.de << " hl: 0x" << std::setw(4) << std::setfill('0')
-			<< c.registers.hl << '\n';
-		os << "ALU Flags: Z: " << c.flags.z << " H: " << c.flags.h << " N: "
-			<< c.flags.n << " C: " << c.flags.c << '\n';
+			<< c.registers_.af << " bc: 0x" << std::setw(4) << std::setfill('0')
+			<< c.registers_.bc << " de: 0x" << std::setw(4) << std::setfill('0')
+			<< c.registers_.de << " hl: 0x" << std::setw(4) << std::setfill('0')
+			<< c.registers_.hl << '\n';
+		os << "ALU Flags: Z: " << c.flags_.z << " H: " << c.flags_.h << " N: "
+			<< c.flags_.n << " C: " << c.flags_.c << '\n';
 		os << "Program Counter: 0x" << std::setw(4) << std::setfill('0')
 			<< c.pc << ", Stack Pointer: 0x" << std::setw(4) << std::setfill('0')
 			<< c.sp << '\n';
 		return os;
 	}
 private:
-	Registers registers;
-	Flags flags;
+	Registers registers_;
+	Flags flags_;
 	enum class Instruction : uint8_t {
 		nop = 0x00,
 		ld_bc_d16 = 0X01,
@@ -599,7 +599,7 @@ private:
 	uint16_t sp;
 	uint16_t pc;
 	bool ime;
-//	MMU &mmu;
+//	MMU &mmu_;
 	std::shared_ptr<MMU> mmu;
 
 	bool halt_bug_occurred = false;
@@ -615,21 +615,21 @@ private:
 	constexpr void swap(uint8_t &reg);
 
 	// Flag register bit twiddling
-	constexpr void set_z() { bit_set(registers.f, 7); };
-	constexpr void reset_z() { bit_clear(registers.f, 7); };
-	constexpr void toggle_z() { bit_flip(registers.f, 7); };
+	constexpr void set_z() { bit_set(registers_.f, 7); };
+	constexpr void reset_z() { bit_clear(registers_.f, 7); };
+	constexpr void toggle_z() { bit_flip(registers_.f, 7); };
 
-	constexpr void set_n() { bit_set(registers.f, 6); };
-	constexpr void reset_n() { bit_clear(registers.f, 6); };
-	constexpr void toggle_n() { bit_flip(registers.f, 6); };
+	constexpr void set_n() { bit_set(registers_.f, 6); };
+	constexpr void reset_n() { bit_clear(registers_.f, 6); };
+	constexpr void toggle_n() { bit_flip(registers_.f, 6); };
 
-	constexpr void set_h() { bit_set(registers.f, 5); };
-	constexpr void reset_h() { bit_clear(registers.f, 5); };
-	constexpr void toggle_h() { bit_flip(registers.f, 5); };
+	constexpr void set_h() { bit_set(registers_.f, 5); };
+	constexpr void reset_h() { bit_clear(registers_.f, 5); };
+	constexpr void toggle_h() { bit_flip(registers_.f, 5); };
 
-	constexpr void set_c() { bit_set(registers.f, 4); };
-	constexpr void reset_c() { bit_clear(registers.f, 4); };
-	constexpr void toggle_c() { bit_flip(registers.f, 4); };
+	constexpr void set_c() { bit_set(registers_.f, 4); };
+	constexpr void reset_c() { bit_clear(registers_.f, 4); };
+	constexpr void toggle_c() { bit_flip(registers_.f, 4); };
 };
 
 #endif // !CPU_H

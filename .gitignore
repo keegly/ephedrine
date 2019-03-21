@@ -247,7 +247,9 @@ ModelManifest.xml
 *.zip
 /ephedrine/spdlog
 /ephedrine/catch.hpp
-/gb-test-roms-master
 /ephedrine/logs
 ephedrine/imgui.ini
 *.sav
+/roms/gb-test-roms-master
+/roms/
+*.sna
