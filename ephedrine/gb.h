@@ -50,19 +50,19 @@ class Gameboy
 		void handle_interrupts();
 		void handle_input(std::array<uint8_t, 2> jp);
 		int tick(int ticks);
-		void tick_until(uint16_t pc);
-		void load(std::vector<uint8_t> cart);
-		static void set_timer(uint16_t t) { divider_ = t; }
-		uint16_t get_timer() { return divider_; }
-		void timer_tick(int cycles);
+		void TickUntil(uint16_t pc);
+		void Load(std::vector<uint8_t> cart);
+		static void SetTimer(uint16_t t) { divider_ = t; }
+		uint16_t GetTimer() { return divider_; }
+		void TimerTick(int cycles);
 		std::shared_ptr<CPU> cpu;
 		std::shared_ptr<MMU> mmu;
 		std::shared_ptr<PPU> ppu;
 		//PPU ppu;
 		const int max_cycles_per_vertical_refresh = 70224;
 		static std::array<uint8_t, 2> joypad;
-		void save_state();
-		void load_state();
+		void SaveState();
+		void LoadState();
 		~Gameboy();
 	private:
 		// a vert refresh after this many cycles

@@ -12,47 +12,50 @@ MMU::MMU()
 {
 	boot_rom_enabled = true;
 	ram_enabled = false;
-	cartridge.clear();
+	cartridge_.clear();
 	rom_banks = 0;
 	num_ram_banks = 0;
 	active_ram_bank = 0;
 }
-MMU::MMU(std::vector<uint8_t> cart, bool boot_rom) : cartridge(cart), boot_rom_enabled(boot_rom)
+MMU::MMU(std::vector<uint8_t> cart, bool boot_rom) : cartridge_(cart), boot_rom_enabled(boot_rom)
 {
-	load(cartridge);
+	load(cartridge_);
 }
 
 void MMU::load(std::vector<uint8_t> c)
 {
 	if (c.empty()) return;
 
-	rom_banks = (32 << cartridge[0x0148]) / 16;
+	rom_banks = (32 << cartridge_[0x0148]) / 16;
 	spdlog::get("stdout")->debug("Rom Banks: {0}", rom_banks);
-	num_ram_banks = cartridge[0x0149];
+	num_ram_banks = cartridge_[0x0149];
 	spdlog::get("stdout")->debug("Ram Banks: {0:04X}", num_ram_banks);
 	if (num_ram_banks > 1) {
-		ram_banks.resize(num_ram_banks);
+		ram_banks_.resize(num_ram_banks);
+	}
+	else {
+		ram_banks_.resize(1);
 	}
 	if (rom_banks <= 2) {
 		int i = 0;
-		for (uint8_t byte : cartridge) {
-			memory[i] = byte;
+		for (uint8_t byte : cartridge_) {
+			memory_[i] = byte;
 			++i;
 		}
 	}
 	else {
 		// load the ROM and the first switchable bank, break the cart into it's
 		// individual 8kB banks, and store them for easy usage later
-		cart_rom_banks.resize(rom_banks);
+		cart_rom_banks_.resize(rom_banks);
 		for (int i = 0; i < 0x8000; ++i) {
-			memory[i] = cartridge[i];
+			memory_[i] = cartridge_[i];
 		}
 
 		int count = 0;
 		int index = 0;
 		for (int i = 0; i < rom_banks; ++i) {
 			while (count < 0x4000) {
-				cart_rom_banks[i][count] = c[index];
+				cart_rom_banks_[i][count] = c[index];
 				++count;
 				++index;
 			}
@@ -61,37 +64,41 @@ void MMU::load(std::vector<uint8_t> c)
 	}
 }
 
-void MMU::set_ppu_mode(uint8_t mode)
+void MMU::ShowDebugWindow()
+{
+}
+
+void MMU::SetPPUMode(uint8_t mode)
 {
 	// invalid mode
 	if (mode > 0x03)
 		return;
 
-	bitmask_clear(memory[STAT], 0x03);
-	bitmask_set(memory[STAT], mode);
+	bitmask_clear(memory_[STAT], 0x03);
+	bitmask_set(memory_[STAT], mode);
 }
 
-uint8_t MMU::read_byte(uint16_t loc)
+uint8_t MMU::ReadByte(uint16_t loc)
 {
 	if (boot_rom_enabled && loc <= 0xFF)
-		return boot_rom[loc];
-	if (cartridge.empty())
+		return boot_rom_[loc];
+	if (cartridge_.empty())
 		return 0xFF;
 	// PPU mode
-	uint8_t ppu_mode = memory[STAT] & 0x03;
+	uint8_t ppu_mode = memory_[STAT] & 0x03;
 	// Read from a ROM bank
 	/*if (rom_banks > 2 && loc >= 0x4000 && loc <= 0x7FFF) {
-		return cart_rom_banks[active_rom_bank][loc - 0x4000];
+		return cart_rom_banks_[active_rom_bank][loc - 0x4000];
 	}*/
 	// joypad bits 6 and 7 always return 1
 	if (loc == P1) {
-		bitmask_set(memory[loc], 0xC0); // should be C0
+		bitmask_set(memory_[loc], 0xC0); // should be C0
 	}
 	//bit 7 unused and always returns 1, bits 0-2 return 0 when LCD is off
 	if (loc == STAT) {
-		bitmask_set(memory[loc], 0x80);
+		bitmask_set(memory_[loc], 0x80);
 		if (!bit_check(LCDC, 7)) {
-			bitmask_clear(memory[loc], 0x03);
+			bitmask_clear(memory_[loc], 0x03);
 		}
 	}
 	// Vram inaccessible during mode 3
@@ -103,21 +110,21 @@ uint8_t MMU::read_byte(uint16_t loc)
 		return 0xFF;
 	}
 	if (loc >= 0xA000 && loc <= 0xBFFF) {
-		return ram_banks[active_ram_bank].at(loc - 0xA000);
+		//return ram_banks_[active_ram_bank].at(loc - 0xA000);
 	}
 	// Only able to read from OAM in H-Blank and V-Blank
 	//if (loc >= 0xFE00 && loc <= 0xFE9F && ppu_mode >= PPU_MODE_OAM_SEARCH) {
 	//	return 0xFF;
 	//}
 
-	return memory[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
+	return memory_[loc]; // needs more logic regarding certain addresses returning FF at certain times etc
 
 	// if reading from OAM in mode 2, return 0xFF
-	// if no cartridge inserted, reads to ROM/RAM return 0xFF
-	// bank N, mem[0x4000 - 0x7FFF] = cartridge[0x4000 * N - 0x7FFF *  N]
+	// if no cartridge_ inserted, reads to ROM/RAM return 0xFF
+	// bank N, mem[0x4000 - 0x7FFF] = cartridge_[0x4000 * N - 0x7FFF *  N]
 }
 
-void MMU::write_byte(uint16_t loc, uint8_t val)
+void MMU::WriteByte(uint16_t loc, uint8_t val)
 {
 	if (loc == 0xFF50 && val == 0x01)
 		boot_rom_enabled = false;
@@ -137,7 +144,7 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		active_rom_bank = val % rom_banks;
 		//spdlog::get("stdout")->debug("selecting rom bank {0}", active_rom_bank);
 		for (int i = 0; i < 0x4000; ++i) {
-			memory[0x4000 + i] = cart_rom_banks[val % rom_banks][i];
+			memory_[0x4000 + i] = cart_rom_banks_[val % rom_banks][i];
 		}
 		return;
 	}
@@ -145,7 +152,12 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	if (loc >= 0x4000 && loc <= 0x5FFF) {
 		// switch RAM banks
 		if (ram_banking_mode) {
+			std::copy(memory_.begin() + 0xA000, memory_.begin() + 0xC000, ram_banks_[active_ram_bank].begin());
 			active_ram_bank = val % num_ram_banks;
+			std::copy(ram_banks_[active_ram_bank].begin(), ram_banks_[active_ram_bank].end(), memory_.begin() + 0xA000);
+			// TODO
+			// copy bytes from ram to old ram bank in vector and
+			// then copy the bytes from the new active bank into memory
 		}
 		// otherwise set the top two bits of the ROM bank
 		else {
@@ -161,16 +173,16 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		ram_banking_mode = val;
 		return;
 	}
-	uint8_t ppu_mode = memory[STAT] & 0x03;
+	uint8_t ppu_mode = memory_[STAT] & 0x03;
 	// Vram inaccessible during mode 3
 	if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == PPU_MODE_LCD_XFER) {
 		return;
 	}
 	if (loc >= 0xA000 && loc <= 0xBFFF) {
 		//spdlog::get("stdout")->debug("External ram access @ {0:04X} - {1:02X}", loc, val);
-		if (num_ram_banks > 0) {
-			ram_banks[active_ram_bank].at(loc - 0xA000) = val;
-		}
+		//if (num_ram_banks > 0) {
+		//	ram_banks_[active_ram_bank].at(loc - 0xA000) = val;
+		//}
 		cart_ram_modified = true;
 	}
 	// no writing to ROM
@@ -178,13 +190,13 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		return;
 	// write to "mirror" ram too
 	if (loc >= 0xC000 && loc < 0xDE00) {
-		memory[loc] = val;
-		memory[loc + 0x2000] = val;
+		memory_[loc] = val;
+		memory_[loc + 0x2000] = val;
 		return;
 	}
 	// Writes to DIV reset it
 	if (loc == DIV) {
-		Gameboy::set_timer(0);
+		Gameboy::SetTimer(0);
 		spdlog::get("stdout")->debug("Timer divider set to 0");
 	}
 
@@ -199,23 +211,23 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 	if (loc == P1) {
 		//spdlog::get("stdout")->debug("write to P1: {0:02x}", val);
 		// clear the 2 selection bits
-		//bitmask_clear(memory[loc], 0x30);
-		bitmask_set(memory[loc], val);
+		//bitmask_clear(memory_[loc], 0x30);
+		bitmask_set(memory_[loc], val);
 		switch ((val >> 4) & 0x03) {
 		case 0x01:
 			// start, sel, a, b selected
-			bitmask_clear(memory[loc], 0x0f);
-			bitmask_set(memory[loc], Gameboy::joypad[0] & 0xf);
+			bitmask_clear(memory_[loc], 0x0f);
+			bitmask_set(memory_[loc], Gameboy::joypad[0] & 0xf);
 			break;
 		case 0x02:
 			// direction pad
-			bitmask_clear(memory[loc], 0x0f);
-			bitmask_set(memory[loc], Gameboy::joypad[1] & 0xf);
+			bitmask_clear(memory_[loc], 0x0f);
+			bitmask_set(memory_[loc], Gameboy::joypad[1] & 0xf);
 			break;
 		case 0x03:
 			// any button?
-			bitmask_clear(memory[loc], 0x0f);
-			bitmask_set(memory[loc], (Gameboy::joypad[0] | Gameboy::joypad[1]) & 0xf);
+			bitmask_clear(memory_[loc], 0x0f);
+			bitmask_set(memory_[loc], (Gameboy::joypad[0] | Gameboy::joypad[1]) & 0xf);
 			break;
 		default:
 			spdlog::get("stdout")->error("Incorrect value in P1: {0:02x}", val);
@@ -232,33 +244,33 @@ void MMU::write_byte(uint16_t loc, uint8_t val)
 		uint16_t dest = 0xFE00;
 		for (int i = 0; i < 160; i += 4)
 		{
-			memory[dest + i] = memory[src + i];
-			memory[dest + (i + 1)] = memory[src + (i + 1)];
-			memory[dest + (i + 2)] = memory[src + (i + 2)];
-			memory[dest + (i + 3)] = memory[src + (i + 3)];
+			memory_[dest + i] = memory_[src + i];
+			memory_[dest + (i + 1)] = memory_[src + (i + 1)];
+			memory_[dest + (i + 2)] = memory_[src + (i + 2)];
+			memory_[dest + (i + 3)] = memory_[src + (i + 3)];
 		}
 		return;
 	}
 
 
-	memory.at(loc) = val;
-	//memory[loc] = val;
+	memory_.at(loc) = val;
+	//memory_[loc] = val;
 }
 
-void MMU::set_register(uint16_t reg, uint8_t val)
+void MMU::SetRegister(uint16_t reg, uint8_t val)
 {
 	// Limit our access to only hardware registers
-	// Use the proper write_byte access for the rest of memory
+	// Use the proper WriteByte access for the rest of memory_
 	// This is so we can set registers when needed while allowing actual writes
 	// to them to reset as appropriate or whatever.
 	if (reg < 0xFF00)
 		return;
 
-	memory[reg] = val;
+	memory_[reg] = val;
 }
 
-uint8_t MMU::get_register(uint16_t reg)
+uint8_t MMU::GetRegister(uint16_t reg)
 {
 	if (reg < 0xFF00) return 0;
-	return memory[reg];
+	return memory_[reg];
 }

@@ -10,18 +10,22 @@ class MMU {
 	public:
 		MMU();
 		MMU(std::vector<uint8_t> cart, bool boot_rom = false);
-		//MMU(uint8_t *cartridge, long size); // take cartridge pointer/length as arguments
-
+		//MMU(uint8_t *cartridge_, long size); // take cartridge_ pointer/length as arguments
+		void ShowDebugWindow();
 		void load(std::vector<uint8_t> c);
-		uint8_t read_byte(uint16_t loc);
-		void write_byte(uint16_t loc, uint8_t val);
-		void set_register(uint16_t reg, uint8_t val);
-		uint8_t get_register(uint16_t reg);
+		uint8_t ReadByte(uint16_t loc);
+		void WriteByte(uint16_t loc, uint8_t val);
+		void SetRegister(uint16_t reg, uint8_t val);
+		uint8_t GetRegister(uint16_t reg);
 		uint16_t read_word(uint16_t loc);
 		void write_word(uint16_t loc, uint16_t val);
-		void set_ppu_mode(uint8_t mode);
+		void SetPPUMode(uint8_t mode);
 		size_t cart_sz() const {
-			return cartridge.size();
+			return cartridge_.size();
+		}
+		const std::unique_ptr<std::vector<uint8_t>> DebugShowMemory(uint16_t start_address, uint16_t end_address) const {
+			std::vector<uint8_t> memory{ memory_.begin() + start_address, memory_.begin() + end_address + 1};
+			return std::make_unique <std::vector<uint8_t>>(memory);
 		}
 		// total amount of 8kB memory banks we have
 		int rom_banks = 0;
@@ -33,18 +37,18 @@ class MMU {
 		template<class Archive>
 		void serialize(Archive &ar, const unsigned int version)
 		{
-			ar & ram_banks;
+			ar & ram_banks_;
 		}
-		std::array<uint8_t, 0x10000> memory{};
-		std::vector<uint8_t> cartridge{};
-		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks{};
-		std::vector<std::array<uint8_t, 0x2000>> ram_banks{};
+		std::array<uint8_t, 0x10000> memory_{};
+		std::vector<uint8_t> cartridge_{};
+		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks_{};
+		std::vector<std::array<uint8_t, 0x2000>> ram_banks_{};
 		uint8_t active_rom_bank{};
 		uint8_t active_ram_bank{};
 		bool ram_banking_mode{};
 		bool ram_enabled{};
 		// Boot ROM
-		const uint8_t boot_rom[256] = {
+		const uint8_t boot_rom_[256] = {
 			0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB,
 			0x21, 0x26, 0xFF, 0x0E, 0x11, 0x3E, 0x80, 0x32, 0xE2, 0x0C, 0x3E, 0xF3,
 			0xE2, 0x32, 0x3E, 0x77, 0x77, 0x3E, 0xFC, 0xE0, 0x47, 0x11, 0x04, 0x01,

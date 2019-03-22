@@ -48,7 +48,7 @@ struct Registers
 class CPU {
 public:
 	// fetch decode execute
-	// talk to mmu_ for memory access
+	// talk to mmu_ for memory_ access
 	// returns previous opcode
 	CPU(std::shared_ptr<MMU> m);
 	uint8_t step();
@@ -58,35 +58,20 @@ public:
 	void print();
 	bool halted = false;
 	// for ui
-	const Registers get_registers() const {
+	const Registers GetRegisters() const {
 		return this->registers_;
 	}
-	const Flags get_flags() const {
+	const Flags GetFlags() const {
 		return this->flags_;
 	}
-	const CPU* get_state() const {
+	const CPU* GetState() const {
 		return this;
 	}
-	uint16_t get_pc() const {
-		return this->pc;
+	uint16_t GetPC() const {
+		return this->pc_;
 	}
-	uint16_t get_sp() const {
-		return this->sp;
-	}
-	template<typename OStream>
-	friend OStream &operator<<(OStream &os, const CPU &c)
-	{
-		os << "registers: af: 0x" << std::hex << std::setw(4) << std::setfill('0')
-			<< c.registers_.af << " bc: 0x" << std::setw(4) << std::setfill('0')
-			<< c.registers_.bc << " de: 0x" << std::setw(4) << std::setfill('0')
-			<< c.registers_.de << " hl: 0x" << std::setw(4) << std::setfill('0')
-			<< c.registers_.hl << '\n';
-		os << "ALU Flags: Z: " << c.flags_.z << " H: " << c.flags_.h << " N: "
-			<< c.flags_.n << " C: " << c.flags_.c << '\n';
-		os << "Program Counter: 0x" << std::setw(4) << std::setfill('0')
-			<< c.pc << ", Stack Pointer: 0x" << std::setw(4) << std::setfill('0')
-			<< c.sp << '\n';
-		return os;
+	uint16_t GetSP() const {
+		return this->sp_;
 	}
 private:
 	Registers registers_;
@@ -596,11 +581,11 @@ private:
 		set_7_hl = 0xFE,
 		set_7_a = 0xFF
 	};
-	uint16_t sp;
-	uint16_t pc;
-	bool ime;
+	uint16_t sp_;
+	uint16_t pc_;
+	bool ime_;
 //	MMU &mmu_;
-	std::shared_ptr<MMU> mmu;
+	std::shared_ptr<MMU> mmu_;
 
 	bool halt_bug_occurred = false;
 

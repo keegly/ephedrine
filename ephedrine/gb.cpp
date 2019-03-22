@@ -30,51 +30,55 @@ Gameboy::Gameboy(std::vector<uint8_t> cart, std::string game) : mmu(std::make_sh
 	// inexplicably this only works down here?
 	// if done in the list above, it ends up as nullptr
 	cpu = std::make_shared<CPU>(this->mmu);
-	std::ifstream ifs{ "mario.sav", std::ios::binary };
-	boost::archive::binary_iarchive ia(ifs);
-	ia >> *mmu;
+	//std::ifstream ifs{ game_ + ".sav", std::ios::binary };
+	//if (ifs) {
+	//	boost::archive::binary_iarchive ia(ifs);
+	//	ia >> *mmu;
+	//}
 }
 
 Gameboy::~Gameboy()
 {
 	// save the "battery buffered" external ram to disk
-	if (mmu->cart_ram_modified) {
-		std::ofstream ofs{ "mario.sav", std::ios::binary };
-		boost::archive::binary_oarchive oa(ofs);
-		oa << *mmu;
-		// unneccessary?
-		mmu->cart_ram_modified = false;
-	}
+	//if (mmu->cart_ram_modified) {
+	//	std::ofstream ofs{ game_ + ".sav", std::ios::binary };
+	//	if (ofs) {
+	//		boost::archive::binary_oarchive oa(ofs);
+	//		oa << *mmu;
+	//	}
+	//	// unneccessary?
+	//	mmu->cart_ram_modified = false;
+	//}
 }
-void Gameboy::load(std::vector<uint8_t> cartridge)
+void Gameboy::Load(std::vector<uint8_t> cartridge)
 {
 	mmu->load(cartridge);
 	mmu->boot_rom_enabled = false;
 }
 
-void Gameboy::save_state()
+void Gameboy::SaveState()
 {
 	// TODO
 }
 
-void Gameboy::load_state()
+void Gameboy::LoadState()
 {
 	// TODO
 }
 
-void Gameboy::timer_tick(int cycles)
+void Gameboy::TimerTick(int cycles)
 {
 	// divider is always counting regardless
 	this->divider_ += cycles;
-	mmu->set_register(DIV, divider_ >> 8);
-	uint8_t timer_ctrl = mmu->read_byte(TAC);
+	mmu->SetRegister(DIV, divider_ >> 8);
+	uint8_t timer_ctrl = mmu->ReadByte(TAC);
 
 	if (!bit_check(timer_ctrl, 2))
 		return;
 
 	// timer enabled
-	uint8_t timer_modulo = mmu->read_byte(TMA);
-	uint8_t timer_counter = mmu->read_byte(TIMA);
+	uint8_t timer_modulo = mmu->ReadByte(TMA);
+	uint8_t timer_counter = mmu->ReadByte(TIMA);
 	if (timer_ticks_ <= clocks_[timer_ctrl & 0x03]) {
 		timer_ticks_ += cycles;
 	}
@@ -82,16 +86,16 @@ void Gameboy::timer_tick(int cycles)
 		if (timer_counter == 0xFF) {
 			timer_counter = timer_modulo;
 			// request timer interrupt (bit 2)
-			uint8_t int_req = mmu->read_byte(IF);
+			uint8_t int_req = mmu->ReadByte(IF);
 			bit_set(int_req, 2);
-			mmu->write_byte(IF, int_req);
+			mmu->WriteByte(IF, int_req);
 		}
 		else {
 			++timer_counter;
 		}
 		//timer_counter == 0xFF ? timer_counter = timer_modulo : ++timer_counter;
 		//spdlog::get("stdout")->debug("timer counter: {0}, modulo: {1}, clocks_:{2}", timer_counter, timer_modulo, clocks_[timer_ctrl & 0x03]);
-		mmu->write_byte(TIMA, timer_counter);
+		mmu->WriteByte(TIMA, timer_counter);
 		timer_ticks_ = 0;
 	}
 }
@@ -103,11 +107,11 @@ void Gameboy::handle_input(std::array<uint8_t, 2> jp)
 	joypad = jp;
 	// only request joypad int if there's a button pressed
 	if (joypad[0] < 0x0F || joypad[1] < 0x0F) {
-		uint8_t int_flag = mmu->read_byte(IF);
+		uint8_t int_flag = mmu->ReadByte(IF);
 		// bit 4 is joypad interrupt request - remove magic number usage here
 		// TODO
 		bit_set(int_flag, 4);
-		mmu->write_byte(IF, int_flag);
+		mmu->WriteByte(IF, int_flag);
 	}
 }
 
@@ -123,8 +127,8 @@ int Gameboy::tick(int ticks)
 		// a little differently
 		if (!cpu->halted)
 			cpu->handle_interrupts();
-		timer_tick(cpu->cycles);
-		ppu->update(cpu->cycles);
+		TimerTick(cpu->cycles);
+		ppu->Update(cpu->cycles);
 		current_screen_cycles_ += cpu->cycles;
 	}
 	current_screen_cycles_ = 0;
