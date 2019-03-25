@@ -45,10 +45,19 @@ struct PixelFIFO {
 	PixelSource source;
 };
 
+enum class PPUMode {
+	kHBlank = 0,
+	kVBlank,
+	kOAMSearch,
+	kLCDTransfer
+};
+
 class PPU {
 public:
 	PPU(std::shared_ptr<MMU> m);
 	bool vblank;
+	bool hblank{};
+	bool finished_current_screen = false;
 	void Update(int cycles);
 	std::unique_ptr<uint8_t[]> Render() const;
 	std::unique_ptr<uint8_t[]> RenderBackgroundTileMap() const;
@@ -75,6 +84,8 @@ private:
 		{(uint8_t)52,(uint8_t)104,(uint8_t)86, (uint8_t)0xff},   // dark grey
 		{(uint8_t)8,(uint8_t)24,(uint8_t)32, (uint8_t)0xff} // black
 	};
+	void OAMSearch();
+	void PixelTransfer();
 	void SetMode(uint8_t mode);
 	int current_scanline_cycles_; // 456 per each individual scan line
 	bool finished_current_line_;

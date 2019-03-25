@@ -119,8 +119,8 @@ int Gameboy::tick(int ticks)
 {
 	// std::lock_guard<std::mutex> lg(mutex);
 	// A vertical refresh happens every 70224 clocks(140448 in GBC double speed mode) : 59, 7275 Hz
-	while (current_screen_cycles_ <= ticks) {
-		// step x ticks
+	int current_screen_cycles = 0;
+	while (!ppu->finished_current_screen) {
 		cpu->step();
 		//handle interrupts
 		// if we're on the HALT opcode, need to handle interrupts
@@ -129,9 +129,8 @@ int Gameboy::tick(int ticks)
 			cpu->handle_interrupts();
 		TimerTick(cpu->cycles);
 		ppu->Update(cpu->cycles);
-		current_screen_cycles_ += cpu->cycles;
+		current_screen_cycles += cpu->cycles;
 	}
-	current_screen_cycles_ = 0;
-
-	return cpu->cycles;
+	ppu->finished_current_screen = false;
+	return current_screen_cycles;
 }
