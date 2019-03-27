@@ -3,8 +3,7 @@
 
 #include "mmu.h"
 #include "bit_utility.h"
-#include "spdlog\fmt\ostr.h"
-#include <iomanip>
+#include "spdlog/fmt/ostr.h"
 
 struct Flags {
 	bool z;		// zero - bit 7
@@ -50,18 +49,18 @@ public:
 	// fetch decode execute
 	// talk to mmu_ for memory_ access
 	// returns previous opcode
-	CPU(std::shared_ptr<MMU> m);
-	uint8_t step();
-	void handle_interrupts();
+	CPU(MMU &mmu);
+	uint8_t Step();
+	void HandleInterrupts();
 	int cycles;
+	constexpr bool IsHalted() const { return halted_; }
 	void nop();
 	void print();
-	bool halted = false;
 	// for ui
-	const Registers GetRegisters() const {
+	Registers GetRegisters() const {
 		return this->registers_;
 	}
-	const Flags GetFlags() const {
+	Flags GetFlags() const {
 		return this->flags_;
 	}
 	const CPU* GetState() const {
@@ -74,8 +73,8 @@ public:
 		return this->sp_;
 	}
 private:
-	Registers registers_;
-	Flags flags_;
+	Registers registers_{};
+	Flags flags_{};
 	enum class Instruction : uint8_t {
 		nop = 0x00,
 		ld_bc_d16 = 0X01,
@@ -323,7 +322,7 @@ private:
 		cp_d8 = 0xFE,
 		rst_38h = 0xFF
 	};
-	enum class Prefix_CB : uint8_t {
+	enum class PrefixCB : uint8_t {
 		rlc_b = 0x00,
 		rlc_c = 0x01,
 		rlc_d = 0x02,
@@ -583,13 +582,13 @@ private:
 	};
 	uint16_t sp_;
 	uint16_t pc_;
-	bool ime_;
-//	MMU &mmu_;
-	std::shared_ptr<MMU> mmu_;
+	bool ime_{};
+	bool halted_ = false;
+	MMU &mmu_;
 
-	bool halt_bug_occurred = false;
+	bool halt_bug_occurred_ = false;
 
-	// some CB opcode DRY?
+	// some opcode DRY?
 	constexpr void rlc(uint8_t &reg);
 	constexpr void rrc(uint8_t &reg);
 	constexpr void rl(uint8_t &reg);
@@ -599,22 +598,32 @@ private:
 	constexpr void srl(uint8_t &reg);
 	constexpr void swap(uint8_t &reg);
 
+	constexpr void add(uint8_t reg);
+	constexpr void adc(uint8_t reg);
+	constexpr void sub(uint8_t reg);
+	constexpr void sbc(uint8_t reg);
+	constexpr void and(uint8_t reg);
+	constexpr void xor(uint8_t reg);
+	constexpr void or (uint8_t reg);
+	constexpr void cp(uint8_t reg);
+	constexpr void ld(uint8_t &src, uint8_t &dest);
+
 	// Flag register bit twiddling
-	constexpr void set_z() { bit_set(registers_.f, 7); };
-	constexpr void reset_z() { bit_clear(registers_.f, 7); };
-	constexpr void toggle_z() { bit_flip(registers_.f, 7); };
+	constexpr void SetZ() { bit_set(registers_.f, 7); };
+	constexpr void ResetZ() { bit_clear(registers_.f, 7); };
+	constexpr void ToggleZ() { bit_flip(registers_.f, 7); };
 
-	constexpr void set_n() { bit_set(registers_.f, 6); };
-	constexpr void reset_n() { bit_clear(registers_.f, 6); };
-	constexpr void toggle_n() { bit_flip(registers_.f, 6); };
+	constexpr void SetN() { bit_set(registers_.f, 6); };
+	constexpr void ResetN() { bit_clear(registers_.f, 6); };
+	constexpr void ToggleN() { bit_flip(registers_.f, 6); };
 
-	constexpr void set_h() { bit_set(registers_.f, 5); };
-	constexpr void reset_h() { bit_clear(registers_.f, 5); };
-	constexpr void toggle_h() { bit_flip(registers_.f, 5); };
+	constexpr void SetH() { bit_set(registers_.f, 5); };
+	constexpr void ResetH() { bit_clear(registers_.f, 5); };
+	constexpr void ToggleH() { bit_flip(registers_.f, 5); };
 
-	constexpr void set_c() { bit_set(registers_.f, 4); };
-	constexpr void reset_c() { bit_clear(registers_.f, 4); };
-	constexpr void toggle_c() { bit_flip(registers_.f, 4); };
+	constexpr void SetC() { bit_set(registers_.f, 4); };
+	constexpr void ResetC() { bit_clear(registers_.f, 4); };
+	constexpr void ToggleC() { bit_flip(registers_.f, 4); };
 };
 
 #endif // !CPU_H

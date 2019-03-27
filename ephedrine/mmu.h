@@ -3,23 +3,53 @@
 
 #include <array>
 #include <vector>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/array.hpp>
 
+enum class CartridgeType {
+	kROMOnly = 0,
+	kMBC1,
+	kMBC1wRAM,
+	kMBC1wRAMwBattery,
+	kMBC2 = 0x05,
+	kMBC2wBattery,
+	kROMRAM = 0x08,
+	kROMRAMwBattery,
+	kMMM01 = 0x0b,
+	kMMM01wRAM,
+	kMMM01wRAMwBattery,
+	kMBC3wTimerwBattery = 0x0f,
+	kMBC3wTimerwRAMwBattery,
+	kMBC3,
+	kMBC3wRAM,
+	kMBC3wRAMwBattery,
+	kMBC5 = 0x19,
+	kMBC5wRAM,
+	kMBC5wRAMwBattery,
+	kMBC5wRumble,
+	kMBC5wRumblewRAM,
+	kMBC5wRumblewRAMwBattery,
+	kMBC6 = 0x20,
+	kMBC7wSensorwRumblewRAMwBattery = 0x22,
+	kPocketCamera = 0xFC,
+	kBandaiTama5,
+	kHuC3,
+	kHuC1wRAMwBattery
+};
 class MMU {
 	public:
 		MMU();
-		MMU(std::vector<uint8_t> cart, bool boot_rom = false);
+		MMU(std::vector<uint8_t> &cart, bool boot_rom = false);
 		//MMU(uint8_t *cartridge_, long size); // take cartridge_ pointer/length as arguments
 		void ShowDebugWindow();
 		void load(std::vector<uint8_t> c);
-		uint8_t ReadByte(uint16_t loc);
-		void WriteByte(uint16_t loc, uint8_t val);
+		uint8_t ReadByte(uint16_t address);
+		void WriteByte(uint16_t address, uint8_t value);
 		void SetRegister(uint16_t reg, uint8_t val);
 		uint8_t GetRegister(uint16_t reg);
 		uint16_t read_word(uint16_t loc);
 		void write_word(uint16_t loc, uint16_t val);
 		void SetPPUMode(uint8_t mode);
+		void SaveBufferedRAM(std::ofstream &ofs);
+		void LoadBufferedRAM(std::ifstream &ifs);
 		size_t cart_sz() const {
 			return cartridge_.size();
 		}
@@ -33,12 +63,6 @@ class MMU {
 		bool boot_rom_enabled = true;
 		bool cart_ram_modified = false;
 	private:
-		friend class boost::serialization::access;
-		template<class Archive>
-		void serialize(Archive &ar, const unsigned int version)
-		{
-			ar & ram_banks_;
-		}
 		std::array<uint8_t, 0x10000> memory_{};
 		std::vector<uint8_t> cartridge_{};
 		std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks_{};
@@ -47,6 +71,7 @@ class MMU {
 		uint8_t active_ram_bank{};
 		bool ram_banking_mode{};
 		bool ram_enabled{};
+		CartridgeType memory_bank_controller_{};
 		// Boot ROM
 		const uint8_t boot_rom_[256] = {
 			0x31, 0xFE, 0xFF, 0xAF, 0x21, 0xFF, 0x9F, 0x32, 0xCB, 0x7C, 0x20, 0xFB,

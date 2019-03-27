@@ -19,7 +19,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 
 // UI
-#include <stdio.h>
+#include <cstdio>
 #include "imgui.h"
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
@@ -48,18 +48,36 @@ void tick(std::shared_ptr<Gameboy> gb)
 	}
 }
 
+std::unique_ptr<std::vector<uint8_t>> load(std::string name, std::ifstream &rom)
+{
+	std::vector<uint8_t> cart;
+	rom.seekg(0, std::ios::end);
+	auto sz = rom.tellg();
+	assert(sz != -1);
+	rom.seekg(0, std::ios::beg);
+	cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
+	rom.read((char *)cart.data(), sz);
+	spdlog::get("stdout")->info("cart size 0x{0:x} bytes", cart.size());
+	return std::make_unique<std::vector<uint8_t>>(cart);
+}
+
 int main(int argc, char** argv) {
 	auto logger = spdlog::stdout_color_mt("stdout");
 	auto file_logger = spdlog::basic_logger_mt("file logger", "logs/cpu.txt");
 	logger->set_level(spdlog::level::debug);
 	file_logger->set_level(spdlog::level::trace);
 	bool quit = false;
-	std::vector<uint8_t> cart;
+	//std::vector<uint8_t> cart;
 	//auto pgm_dir = std::filesystem::current_path() + "/roms/";
 	std::map<std::string, std::ifstream> roms{};
-	roms.insert(std::pair<std::string, std::ifstream>("Super Mario Land 2 - 6 Golden Coins", std::ifstream("../roms/Super Mario Land 2  - 6 Golden Coins.gb", std::ios::binary)));
+	roms.insert(std::pair<std::string, std::ifstream>("Super Mario Land 2 - 6 Golden Coins", std::ifstream("../roms/Super Mario Land 2 - 6 Golden Coins.gb", std::ios::binary)));
 	roms.insert(std::pair<std::string, std::ifstream>("Super Mario Land", std::ifstream("../roms/Super_Mario_Land.gb", std::ios::binary)));
-	//std::ifstream in("../gb-test-roms-master/cpu_instrs/cpu_instrs.gb", std::ios::binary);
+	roms.insert(std::pair<std::string, std::ifstream>("Donkey Kong Land", std::ifstream("../roms/Donkey Kong Land.gb", std::ios::binary)));
+	roms.insert(std::pair<std::string, std::ifstream>("Kirby's Dream Land", std::ifstream("../roms/Kirby's Dream Land.gb", std::ios::binary)));
+	roms.insert(std::pair<std::string, std::ifstream>("Kirby's Dream Land 2", std::ifstream("../roms/Kirby's Dream Land 2.gb", std::ios::binary)));
+	roms.insert(std::pair<std::string, std::ifstream>("Pokemon Blue", std::ifstream("../roms/Pokemon - Blue Version.gb", std::ios::binary)));
+	roms.insert(std::pair<std::string, std::ifstream>("Legend of Zelda: Link's Awakening", std::ifstream("../roms/Legend_of_Zelda,_The_-_Link's_Awakening.gb", std::ios::binary)));
+	//std::ifstream in("../roms/gb-test-roms-master/cpu_instrs/cpu_instrs.gb", std::ios::binary);
 	// test roms
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/01-special.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb", std::ios::binary);
@@ -72,7 +90,7 @@ int main(int argc, char** argv) {
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/06-ld r,r.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/08-misc instrs.gb", std::ios::binary);
-	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/09-op r,r.gb", std::ios::binary);
+	//std::ifstream in("../roms/gb-test-roms-master/cpu_instrs/individual/09-op r,r.gb", std::ios::binary);
 	//std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/10-bit ops.gb", std::ios::binary);
 
 	// PPU testing
@@ -80,24 +98,19 @@ int main(int argc, char** argv) {
 	//std::ifstream in("../tellinglys.gb", std::ios::binary);
 	//std::ifstream in("../tetris.gb", std::ios::binary);
 	//std::ifstream in("../Dr. Mario.gb", std::ios::binary);
-	std::ifstream in("../roms/Super Mario Land 2 - 6 Golden Coins.gb", std::ios::binary);
-	//std::ifstream in("../Super_Mario_Land.gb", std::ios::binary);
-	//std::ifstream in("../Pokemon - Blue Version.gb", std::ios::binary);
-	//std::ifstream in("../Legend_of_Zelda,_The_-_Link's_Awakening.gb", std::ios::binary);
+	//std::ifstream in("../roms/Super Mario Land 2 - 6 Golden Coins.gb", std::ios::binary);
 	//std::ifstream in("../roms/Tennis.gb", std::ios::binary);
 	//std::ifstream in("../James Bond.gb", std::ios::binary);
-	//std::ifstream in("../Donkey Kong Land.gb", std::ios::binary);
-	in.seekg(0, std::ios::end);
+	/*in.seekg(0, std::ios::end);
 	auto sz = in.tellg();
 	assert(sz != -1);
 	in.seekg(0, std::ios::beg);
 	cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
 	in.read((char *)cart.data(), sz);
-	logger->info("cart size 0x{0:x} bytes", cart.size());
+	logger->info("cart size 0x{0:x} bytes", cart.size());*/
 	//std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
-	auto gb{ std::make_unique<Gameboy>(cart, "Super Mario Land 2 - 6 Golden Coins") };
-	//auto gb{ std::make_unique<Gameboy>() };
-	//auto gb = std::make_shared<Gameboy>(cart);
+//	auto gb{ std::make_unique<Gameboy>(cart, "Super Mario Land 2 - 6 Golden Coins") };
+	auto gb{ std::make_unique<Gameboy>() };
 
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
@@ -143,16 +156,17 @@ int main(int argc, char** argv) {
 	SDL_Event event;
 	int cycles = 0;
 	bool running = false;
-	bool framelimit = true;
+	bool framelimit = false;
 	std::array<uint8_t, 2> joypad = { 0xf, 0xf };
 	Registers reg_state;
 	Flags flag_state;
 	while (!quit) {
 		auto start = std::chrono::high_resolution_clock::now();
+		cycles = 0;
 		if (running) {
 			cycles += gb->tick(gb->max_cycles_per_vertical_refresh); // one full screen refresh worth of cycles
+		//logger->debug("{0} cycles, {1} currLY, mode: {2}", cycles, gb->mmu.ReadByte(LY), gb->mmu.ReadByte(STAT) & 0x03);
 		}
-
 		while (SDL_PollEvent(&event))
 		{
 			ImGui_ImplSDL2_ProcessEvent(&event);
@@ -174,13 +188,8 @@ int main(int argc, char** argv) {
 				case SDLK_F3:
 					gb->LoadState();
 					break;
-				case SDLK_r:
-					running ^= running;
-					logger->info("Execution: {0}", running ? "resumed" : "paused");
-					break;
 				case SDLK_p:
-					gb->cpu->print();
-					gb->ppu->Print();
+					gb->cpu.print();
 					//Logger::logger->debug("--------------------------------");
 					break;
 				case SDLK_z:
@@ -254,9 +263,9 @@ int main(int argc, char** argv) {
 		ImGui::NewFrame();
 
 		ImGui::Begin("Debug");
-		auto sprites = gb->ppu->GetAllSprites();
-		reg_state = gb->cpu->GetRegisters();
-		flag_state = gb->cpu->GetFlags();
+		auto sprites = gb->ppu.GetAllSprites();
+		reg_state = gb->cpu.GetRegisters();
+		flag_state = gb->cpu.GetFlags();
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::Columns(2, "register_columns", true);
 		ImGui::Separator();
@@ -264,8 +273,8 @@ int main(int argc, char** argv) {
 		ImGui::Text("BC= 0x%0.4X", reg_state.bc);
 		ImGui::Text("DE= 0x%0.4X", reg_state.de);
 		ImGui::Text("HL= 0x%0.4X", reg_state.hl);
-		ImGui::Text("PC= 0x%0.4X", gb->cpu->GetPC());
-		ImGui::Text("SP= 0x%0.4X", gb->cpu->GetSP());
+		ImGui::Text("PC= 0x%0.4X", gb->cpu.GetPC());
+		ImGui::Text("SP= 0x%0.4X", gb->cpu.GetSP());
 		ImGui::Checkbox("z", &flag_state.z);
 		ImGui::SameLine();
 		ImGui::Checkbox("n", &flag_state.n);
@@ -274,11 +283,11 @@ int main(int argc, char** argv) {
 		ImGui::SameLine();
 		ImGui::Checkbox("c", &flag_state.c);
 		ImGui::NextColumn();
-		ImGui::Text("lcdc= 0x%0.2X", gb->mmu->GetRegister(LCDC));
-		ImGui::Text("stat= 0x%0.2X", gb->mmu->GetRegister(STAT));
-		ImGui::Text("ly= 0x%0.2X", gb->mmu->GetRegister(LY));
-		ImGui::Text("IE: 0x%0.2x", gb->mmu->GetRegister(IE));
-		ImGui::Text("IF: 0x%0.2x", gb->mmu->GetRegister(IF));
+		ImGui::Text("lcdc= 0x%0.2X", gb->mmu.GetRegister(LCDC));
+		ImGui::Text("stat= 0x%0.2X", gb->mmu.GetRegister(STAT));
+		ImGui::Text("ly= 0x%0.2X", gb->mmu.GetRegister(LY));
+		ImGui::Text("IE: 0x%0.2x", gb->mmu.GetRegister(IE));
+		ImGui::Text("IF: 0x%0.2x", gb->mmu.GetRegister(IF));
 		ImGui::Checkbox("running", &running);
 		ImGui::SameLine();
 		if (ImGui::Button("Step"))
@@ -291,33 +300,65 @@ int main(int argc, char** argv) {
 			bool z = false;
 			while (!z) {
 				gb->tick(1);
-				flag_state = gb->cpu->GetFlags();
+				flag_state = gb->cpu.GetFlags();
 				z = flag_state.z;
 			}
 		}
 
-		// Display our list of games to choose from
-		for (auto const&[key, val] : roms) {
-			ImGui::Text(key.data());
-		}
 
 		ImGui::End();
 		ImGui::Begin("Sprites");
-		for (Sprite &s : *sprites.get()) {
+		for (Sprite &s : *sprites) {
 			ImGui::Text("Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X", s.y, s.x, s.tile, s.flags);
 			if (ImGui::IsItemHovered()) {
 				// TODO: make background lighter colored
 				ImGui::BeginTooltip();
-				auto sprite_pixels = gb->ppu->RenderSprite(s);
+				auto sprite_pixels = *gb->ppu.RenderSprite(s);
 				GLuint sprite_tex;
 				glGenTextures(1, &sprite_tex);
 				glBindTexture(GL_TEXTURE_2D, sprite_tex);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 				glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, sprite_pixels.get()->data());
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, sprite_pixels.data());
 				ImGui::Image((void *)sprite_tex, ImVec2(64, 64));
 				ImGui::EndTooltip();
+			}
+		}
+		ImGui::End();
+
+		ImGui::Begin("Games");
+		// Display our list of games to choose from
+		for (auto& [key, val] : roms) {
+			if (ImGui::Selectable(key.data())) {
+				logger->info("Loading game: {0}", key);
+				auto cart = load(key, val);
+				gb = std::make_unique<Gameboy>(*cart, key);
+				running = true;
+			}
+		}
+		ImGui::End();
+
+		if (ImGui::Begin("PPU Debug")) {
+			static bool ui_draw_bg_map = true;
+			ImGui::Checkbox("Background Map", &ui_draw_bg_map);
+			static bool ui_draw_tile_map = true;
+			ImGui::Checkbox("Tile Map", &ui_draw_tile_map);
+			ImGui::Checkbox("Framelimiter", &framelimit);
+			ImGui::Text("Mode: %0.2x", gb->mmu.ReadByte(STAT));
+			ImGui::Text("Vblank: %d", gb->ppu.IsVBlank());
+
+			if (ui_draw_bg_map) {
+				SDL_ShowWindow(bg_map_win);
+			}
+			else {
+				SDL_HideWindow(bg_map_win);
+			}
+			if (ui_draw_tile_map) {
+				SDL_ShowWindow(tile_map_win);
+			}
+			else {
+				SDL_HideWindow(tile_map_win);
 			}
 		}
 		ImGui::End();
@@ -325,18 +366,28 @@ int main(int argc, char** argv) {
 		// TODO: color code bytes
 		if (ImGui::Begin("Memory Viewer")) {
 			static ImU32 start_address = 0;
-			static ImU32 end_address = 0;
+			static ImU32 end_address = 0xff;
+			static bool follow_pc = false;
 			std::vector<uint8_t> memory{};
-			ImGui::InputScalar("Start Address: ", ImGuiDataType_U32, &start_address, nullptr, nullptr, "%04X", ImGuiInputTextFlags_CharsHexadecimal);
-			ImGui::InputScalar("End Address: ", ImGuiDataType_U32, &end_address, nullptr, nullptr, "%04X", ImGuiInputTextFlags_CharsHexadecimal);
-			if (end_address >= start_address && end_address <= 0xFFFF) {
-				memory = *gb->mmu->DebugShowMemory(start_address, end_address);
+			ImGui::PushItemWidth(50);
+			ImGui::InputScalar("Start Address", ImGuiDataType_U32, &start_address, nullptr, nullptr, "%04X", ImGuiInputTextFlags_CharsHexadecimal);
+			ImGui::SameLine();
+			ImGui::InputScalar("End Address", ImGuiDataType_U32, &end_address, nullptr, nullptr, "%04X", ImGuiInputTextFlags_CharsHexadecimal);
+			ImGui::SameLine();
+			ImGui::Checkbox("Follow PC", &follow_pc);
+			if (follow_pc) {
+				start_address = gb->cpu.GetPC();
+				end_address = start_address + 0xFF;
 			}
-			ImGui::Columns(17, "bytes view", false);
+			ImGui::PopItemWidth();
+			if (end_address >= start_address && end_address <= 0xFFFF) {
+				memory = *gb->mmu.DebugShowMemory(start_address, end_address);
+			}
+			ImGui::Columns(17, nullptr, false);
 			for (unsigned int i = 0; i < memory.size(); ++i) {
 				if (i % 0x10 == 0) {
 					ImGui::TextColored(ImVec4(255, 255, 255, 255), "%0.4X:", i + start_address);
-				ImGui::NextColumn();
+					ImGui::NextColumn();
 				}
 				char label[12];
 				sprintf_s(label, "%0.2X", memory[i]);
@@ -366,17 +417,17 @@ int main(int argc, char** argv) {
 		//	gb.enable_interrupt();
 		//}
 
-		SDL_UpdateTexture(tex, nullptr, gb->ppu->Render().get(), 160 * 4);
+		SDL_UpdateTexture(tex, nullptr, gb->ppu.Render().get(), 160 * 4);
 		SDL_RenderClear(ren);
 		SDL_RenderCopy(ren, tex, nullptr, nullptr);
 		SDL_RenderPresent(ren);
 
-		SDL_UpdateTexture(bg_map_tex, nullptr, gb->ppu->RenderBackgroundTileMap().get(), 256 * 4);
+		SDL_UpdateTexture(bg_map_tex, nullptr, gb->ppu.RenderBackgroundTileMap().get(), 256 * 4);
 		SDL_RenderClear(bg_map_ren);
 		SDL_RenderCopy(bg_map_ren, bg_map_tex, nullptr, nullptr);
 		SDL_RenderPresent(bg_map_ren);
 
-		SDL_UpdateTexture(tile_map_tex, nullptr, gb->ppu->RenderTiles().get(), 128 * 4);
+		SDL_UpdateTexture(tile_map_tex, nullptr, gb->ppu.RenderTiles().get(), 128 * 4);
 		SDL_RenderClear(tile_map_ren);
 		SDL_RenderCopy(tile_map_ren, tile_map_tex, nullptr, nullptr);
 		SDL_RenderPresent(tile_map_ren);

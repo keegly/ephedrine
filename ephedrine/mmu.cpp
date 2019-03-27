@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <vector>
+#include <fstream>
 #include <iostream>
 
 #include "spdlog/spdlog.h"
@@ -17,7 +18,7 @@ MMU::MMU()
 	num_ram_banks = 0;
 	active_ram_bank = 0;
 }
-MMU::MMU(std::vector<uint8_t> cart, bool boot_rom) : cartridge_(cart), boot_rom_enabled(boot_rom)
+MMU::MMU(std::vector<uint8_t> &cart, bool boot_rom) : cartridge_(cart), boot_rom_enabled(boot_rom)
 {
 	load(cartridge_);
 }
@@ -30,6 +31,7 @@ void MMU::load(std::vector<uint8_t> c)
 	spdlog::get("stdout")->debug("Rom Banks: {0}", rom_banks);
 	num_ram_banks = cartridge_[0x0149];
 	spdlog::get("stdout")->debug("Ram Banks: {0:04X}", num_ram_banks);
+	memory_bank_controller_ = static_cast<CartridgeType>(cartridge_[0x0147]);
 	if (num_ram_banks > 1) {
 		ram_banks_.resize(num_ram_banks);
 	}
@@ -74,8 +76,58 @@ void MMU::SetPPUMode(uint8_t mode)
 	if (mode > 0x03)
 		return;
 
+	//spdlog::get("stdout")->debug("setting ppu mode {0}", mode);
+
 	bitmask_clear(memory_[STAT], 0x03);
 	bitmask_set(memory_[STAT], mode);
+}
+
+void MMU::SaveBufferedRAM(std::ofstream &ofs)
+{
+	// only save if we would have a battery onboard
+	switch (memory_bank_controller_) {
+	case CartridgeType::kMBC1wRAMwBattery:
+	case CartridgeType::kMBC2wBattery:
+	case CartridgeType::kROMRAMwBattery:
+	case CartridgeType::kMMM01wRAMwBattery:
+	case CartridgeType::kMBC3wTimerwBattery:
+	case CartridgeType::kMBC3wTimerwRAMwBattery:
+	case CartridgeType::kMBC3wRAMwBattery:
+	case CartridgeType::kMBC5wRAMwBattery:
+	case CartridgeType::kMBC5wRumblewRAMwBattery:
+	case CartridgeType::kMBC7wSensorwRumblewRAMwBattery:
+		for (int i = 0xA000; i < 0xC000; ++i) {
+			ofs << memory_[i];
+		}
+		break;
+	default:
+		spdlog::get("stdout")->info("Cartridge type {0} not battery buffered, not saving", static_cast<uint8_t>(memory_bank_controller_));
+		break;
+	}
+}
+
+void MMU::LoadBufferedRAM(std::ifstream &ifs)
+{
+	// only save if we would have a battery onboard
+	switch (memory_bank_controller_) {
+	case CartridgeType::kMBC1wRAMwBattery:
+	case CartridgeType::kMBC2wBattery:
+	case CartridgeType::kROMRAMwBattery:
+	case CartridgeType::kMMM01wRAMwBattery:
+	case CartridgeType::kMBC3wTimerwBattery:
+	case CartridgeType::kMBC3wTimerwRAMwBattery:
+	case CartridgeType::kMBC3wRAMwBattery:
+	case CartridgeType::kMBC5wRAMwBattery:
+	case CartridgeType::kMBC5wRumblewRAMwBattery:
+	case CartridgeType::kMBC7wSensorwRumblewRAMwBattery:
+		for (int i = 0xA000; i < 0xC000; ++i) {
+			ifs >> memory_[i];
+		}
+		break;
+	default:
+		spdlog::get("stdout")->info("{0} not battery buffered", static_cast<uint8_t>(memory_bank_controller_));
+		break;
+	}
 }
 
 uint8_t MMU::ReadByte(uint16_t loc)
@@ -102,7 +154,7 @@ uint8_t MMU::ReadByte(uint16_t loc)
 		}
 	}
 	// Vram inaccessible during mode 3
-	//if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == PPU_MODE_LCD_XFER) {
+	//if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == kPPUModeLCDTransfer) {
 	//	return 0xFF;
 	//}
 	// RAM has to be enabled to read from it
@@ -113,7 +165,7 @@ uint8_t MMU::ReadByte(uint16_t loc)
 		//return ram_banks_[active_ram_bank].at(loc - 0xA000);
 	}
 	// Only able to read from OAM in H-Blank and V-Blank
-	//if (loc >= 0xFE00 && loc <= 0xFE9F && ppu_mode >= PPU_MODE_OAM_SEARCH) {
+	//if (loc >= 0xFE00 && loc <= 0xFE9F && ppu_mode >= kPPUModeOAMSearch) {
 	//	return 0xFF;
 	//}
 
@@ -164,18 +216,19 @@ void MMU::WriteByte(uint16_t loc, uint8_t val)
 			bitmask_clear(active_rom_bank, 0xC0);
 			bitmask_set(active_rom_bank, val << 6);
 		}
-		spdlog::get("stdout")->debug("ram/upper bits of rom bank @ {0:04X} - {1:02X} val", loc, val);
+		//spdlog::get("stdout")->debug("ram/upper bits of rom bank @ {0:04X} - {1:02X} val", loc, val);
 		return;
 	}
 	// Rom/Ram mode
 	if (loc >= 0x6000 && loc <= 0x7FFF) {
-		spdlog::get("stdout")->debug("rom/ram mode set @ {0:04X} - {1:02X} val", loc, val);
+		//spdlog::get("stdout")->debug("rom/ram mode set @ {0:04X} - {1:02X} val", loc, val);
+		// TODO: if mode 0, switch to ram bank 0 (and stay)
 		ram_banking_mode = val;
 		return;
 	}
 	uint8_t ppu_mode = memory_[STAT] & 0x03;
 	// Vram inaccessible during mode 3
-	if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == PPU_MODE_LCD_XFER) {
+	if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == kPPUModeLCDTransfer) {
 		return;
 	}
 	if (loc >= 0xA000 && loc <= 0xBFFF) {
@@ -197,7 +250,7 @@ void MMU::WriteByte(uint16_t loc, uint8_t val)
 	// Writes to DIV reset it
 	if (loc == DIV) {
 		Gameboy::SetTimer(0);
-		spdlog::get("stdout")->debug("Timer divider set to 0");
+		//spdlog::get("stdout")->debug("Timer divider set to 0");
 	}
 
 	// any writing to 0xFF44 resets it
@@ -237,7 +290,7 @@ void MMU::WriteByte(uint16_t loc, uint8_t val)
 	}
 
 	// OAM Data Transfer, only possible during modes 0 and 1
-	if (loc == DMA && ppu_mode <= PPU_MODE_VBLANK) {
+	if (loc == DMA && ppu_mode <= kPPUModeVBlank) {
 		// val is the MSB of our source xfer address
 		uint16_t src = val << 8;
 		// bottom of OEM Ram
