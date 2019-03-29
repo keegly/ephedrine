@@ -109,13 +109,13 @@ void PPU::PixelTransfer()
 {
 	SetMode(kPPUModeLCDTransfer);
 	uint8_t lcdc = mmu_.ReadByte(LCDC);
-	uint8_t currLY = mmu_.ReadByte(LY);
+	uint8_t current_ly = mmu_.ReadByte(LY);
 	// bg pixel xfer, if bit 0 of LCDC is set (bg enable)
 	if (bit_check(lcdc, 0)) {
 		uint8_t scx = mmu_.ReadByte(SCX);
 		uint8_t scy = mmu_.ReadByte(SCY);
 		// what line are we on?
-		uint8_t ybase = scy + currLY;
+		uint8_t ybase = scy + current_ly;
 		// find current bg map position
 		uint16_t bg_map_address = (0x9800 | (lcdc << 0x10) | ((ybase & 0xf8) << 2) | ((scx & 0xf8) >> 3));
 		// leftmost bg address (to help with screen wrap)
@@ -176,7 +176,7 @@ void PPU::PixelTransfer()
 		// push all pixels_ to "lcd"
 		for (int i = 0; i < 160; ++i) {
 			Pixel pixel = GetColor(p.front());
-			pixels_[currLY][i] = pixel;
+			pixels_[current_ly][i] = pixel;
 			p.pop();
 		}
 
@@ -188,7 +188,7 @@ void PPU::PixelTransfer()
 			bit_check(lcdc, 6) ? window_tile_map = 0x9C00 : window_tile_map = 0x9800;
 			uint8_t window_x_scroll = mmu_.ReadByte(WX);
 			uint8_t window_y_scroll = mmu_.ReadByte(WY);
-			if (currLY >= window_y_scroll) {
+			if (current_ly >= window_y_scroll) {
 				tile_num = mmu_.ReadByte(window_tile_map);
 				// which we can use to grab the actual tile bytes
 				if (bit_check(lcdc, 4)) {
@@ -212,7 +212,7 @@ void PPU::PixelTransfer()
 						tileaddr = tileset + (static_cast<int8_t>(tile_num) * 16);
 					}
 					// get the right vertical row of the tile
-					tileaddr = tileaddr + (((window_y_scroll + currLY) % 8) * 2);
+					tileaddr = tileaddr + (((window_y_scroll + current_ly) % 8) * 2);
 					tile_low = mmu_.ReadByte(tileaddr);
 					tile_high = mmu_.ReadByte(tileaddr + 1);
 					for (int bit = 7; bit >= 0; --bit) {
@@ -237,7 +237,7 @@ void PPU::PixelTransfer()
 				Pixel pixel = GetColor(p.front());
 				int x_pos = (window_x_scroll - 7) + i;
 				if (x_pos >= 0 && x_pos < 160) {
-					pixels_[currLY][x_pos] = pixel;
+					pixels_[current_ly][x_pos] = pixel;
 				}
 				p.pop();
 			}
@@ -251,7 +251,7 @@ void PPU::PixelTransfer()
 			std::vector<Pixel> row{};
 			for (const Sprite &s : visible_sprites_) {
 				tileaddr = 0x8000 + (s.tile * 16);
-				uint8_t row_num = ((currLY)-(s.y - 16)) * 2;
+				uint8_t row_num = ((current_ly)-(s.y - 16)) * 2;
 				// Flip across the Y axis (upside down)
 				if (bit_check(s.flags, 6)) {
 					tileaddr = 0x8000 + (((s.tile + 1) * 16) - 1);
@@ -285,8 +285,8 @@ void PPU::PixelTransfer()
 						++x_pos;
 						continue;
 					}
-					if ((sprite_bg_priority && pixels_[currLY][x_pos].palette == 0) || !sprite_bg_priority) {
-						pixels_[currLY][x_pos] = p;
+					if ((sprite_bg_priority && pixels_[current_ly][x_pos].palette == 0) || !sprite_bg_priority) {
+						pixels_[current_ly][x_pos] = p;
 					}
 					++x_pos;
 				}
