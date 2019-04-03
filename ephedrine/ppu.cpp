@@ -119,10 +119,11 @@ void PPU::PixelTransfer() {
     // what line are we on?
     uint8_t ybase = scy + current_ly;
     // find current bg map position
-    uint16_t bg_map_address =
-        (0x9800 | (lcdc << 0x10) | ((ybase & 0xf8) << 2) | ((scx & 0xf8) >> 3));
+    uint16_t bg_map_address = (0x9800 | (bit_check(lcdc, 3) << 10) |
+                               ((ybase & 0xf8) << 2) | ((scx & 0xf8) >> 3));
     // leftmost bg address (to help with screen wrap)
-    uint16_t bg_map_base = (0x9800 | (lcdc << 0x10) | ((ybase & 0xf8) << 2));
+    uint16_t bg_map_base =
+        (0x9800 | (bit_check(lcdc, 3) << 10) | ((ybase & 0xf8) << 2));
     // which tells us the current bg map tile number
     // leftmost?
     uint8_t tile_num = mmu_.ReadByte(bg_map_address);
@@ -183,11 +184,11 @@ void PPU::PixelTransfer() {
     if (bit_check(lcdc, 5)) {
       std::queue<uint8_t> empty{};
       std::swap(p, empty);
-      uint16_t window_tile_map = 0;
-      bit_check(lcdc, 6) ? window_tile_map = 0x9C00 : window_tile_map = 0x9800;
       uint8_t window_x_scroll = mmu_.ReadByte(WX);
       uint8_t window_y_scroll = mmu_.ReadByte(WY);
       if (current_ly >= window_y_scroll) {
+        uint16_t window_tile_map = 0x9800 | bit_check(lcdc, 6) << 10 |
+                                   ((current_ly - window_y_scroll) & 0xf8) << 2;
         tile_num = mmu_.ReadByte(window_tile_map);
         // which we can use to grab the actual tile bytes
         if (bit_check(lcdc, 4)) {
@@ -209,7 +210,7 @@ void PPU::PixelTransfer() {
             tileaddr = tileset + (static_cast<int8_t>(tile_num) * 16);
           }
           // get the right vertical row of the tile
-          tileaddr = tileaddr + (((window_y_scroll + current_ly) % 8) * 2);
+          tileaddr = tileaddr + (current_ly - window_y_scroll) % 8 * 2;
           tile_low = mmu_.ReadByte(tileaddr);
           tile_high = mmu_.ReadByte(tileaddr + 1);
           for (int bit = 7; bit >= 0; --bit) {
@@ -223,9 +224,6 @@ void PPU::PixelTransfer() {
             }
           }
           window_tile_map += 1;
-
-          if (bg_map_address > (bg_map_base + 0x1F))
-            bg_map_address = bg_map_base;
         }
       }
 
@@ -495,14 +493,15 @@ std::unique_ptr<uint8_t[]> PPU::RenderBackgroundTileMap() const {
   auto pixels = std::make_unique<uint8_t[]>(256 * 256 * 4);
 
   uint16_t tile_address;
+  const uint8_t lcdc = mmu_.ReadByte(LCDC);
   int count = 0;
 
   // background (32 tiles wide)
   for (int y = 0; y < 256; ++y) {
-    uint16_t bg_map_address = (0x9800 | ((y & 0xf8) << 2));
+    uint16_t bg_map_address =
+        0x9800 | bit_check(lcdc, 3) << 10 | (y & 0xf8) << 2;
     for (int x = 0; x < 32; ++x) {
       const uint8_t tile_num = mmu_.ReadByte(bg_map_address);
-      const uint8_t lcdc = mmu_.ReadByte(LCDC);
       if (bit_check(lcdc, 4)) {
         tile_address = 0x8000 + (tile_num * 16);
       } else {
@@ -539,13 +538,14 @@ std::unique_ptr<uint8_t[]> PPU::RenderBackgroundTileMap() const {
  * Render the tile data, to aid in debugging
  */
 std::unique_ptr<uint8_t[]> PPU::RenderTiles() const {
-  auto pixels = std::make_unique<uint8_t[]>(128 * 256 * 4);
+  auto pixels = std::make_unique<uint8_t[]>(128 * 192 * 4);
 
   uint16_t tile_row = 0;
   int count = 0;
 
-  for (int y = 0; y < 256; ++y) {
+  for (int y = 0; y < 192; ++y) {
     for (int x = 0; x < 16; ++x) {
+      // TODO: implement handling other tile map address
       uint16_t tile_address = 0x8000 + tile_row + (x * 16);
       tile_address = tile_address + ((y % 8) * 2);
       const auto tile_low = mmu_.ReadByte(tile_address);
