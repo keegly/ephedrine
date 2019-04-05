@@ -1,6 +1,7 @@
 #ifndef CPU_H
 #define CPU_H
 
+#include <deque>
 #include "bit_utility.h"
 #include "instructions.h"
 #include "mmu.h"
@@ -57,7 +58,7 @@ class CPU {
   void Print() const;
   // for ui
   Registers GetRegisters() const { return this->registers_; }
-  std::vector<DecodedInstruction>& GetExecutedInstructions() {
+  const std::deque<DecodedInstruction>& GetExecutedInstructions() const {
     return executed_instructions_;
   }
   Flags GetFlags() const { return this->flags_; }
@@ -580,7 +581,8 @@ class CPU {
   MMU& mmu_;
 
   bool halt_bug_occurred_ = false;
-  std::vector<DecodedInstruction> executed_instructions_;
+  // std::vector<DecodedInstruction> executed_instructions_;
+  std::deque<DecodedInstruction> executed_instructions_;
 
   // some opcode DRY?
   constexpr void rlc(uint8_t& reg);
@@ -592,15 +594,17 @@ class CPU {
   constexpr void srl(uint8_t& reg);
   constexpr void swap(uint8_t& reg);
 
-  constexpr void add(uint8_t reg);
-  constexpr void adc(uint8_t reg);
-  constexpr void sub(uint8_t reg);
-  constexpr void sbc(uint8_t reg);
-  constexpr void and (uint8_t reg);
-  constexpr void xor (uint8_t reg);
-  constexpr void or (uint8_t reg);
-  constexpr void cp(uint8_t reg);
-  constexpr void ld(uint8_t& src, uint8_t& dest);
+  constexpr void Add(uint8_t operand);
+  constexpr void Adc(uint8_t operand);
+  constexpr void Sub(uint8_t operand);
+  constexpr void Sbc(uint8_t operand);
+  constexpr void And(uint8_t operand);
+  constexpr void Xor(uint8_t operand);
+  constexpr void Or(uint8_t operand);
+  constexpr void Compare(uint8_t operand);
+  constexpr void Load(uint8_t src, uint8_t& dest);
+  constexpr void Increment(uint8_t& operand);
+  constexpr void Decrement(uint8_t& operand);
 
   // Flag register bit twiddling
   constexpr void SetZ() { bit_set(registers_.f, 7); };

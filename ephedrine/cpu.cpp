@@ -48,33 +48,46 @@ void CPU::HandleInterrupts() {
 
 DecodedInstruction CPU::Execute() {
   // auto opcode = static_cast<Instruction>(mmu_.ReadByte(pc_));
-  auto opcode = mmu_.ReadByte(pc_);
+  const auto opcode = mmu_.ReadByte(pc_);
   auto decoded = Instructions::Decode(opcode);
   // executed_instructions_.push_back(decoded);
-  /*switch (decoded.mode) {
+  switch (decoded.mode) {
     case AddressingMode::kDirect:
       decoded.operand = mmu_.ReadByte((pc_ + 2) << 8) + mmu_.ReadByte(pc_ + 1);
-      spdlog::get("stdout")->debug("{0:02x} {1:04x} | {2}", decoded.opcode,
-                                   decoded.operand, decoded.name);
+      /*spdlog::get("file logger")
+          ->debug("0x{3:04X}: {0:02x} {1:04x} | {2}", decoded.opcode,
+                  decoded.operand.value(), decoded.name, pc_);*/
       break;
     case AddressingMode::kImmediate:
       decoded.operand = mmu_.ReadByte(pc_ + 1);
-      spdlog::get("stdout")->debug("{0:02x} {1:02x}   | {2}", decoded.opcode,
-                                   decoded.operand, decoded.name);
+      /*  spdlog::get("file logger")
+            ->debug("0x{3:04X}: {0:02x} {1:02x}     | {2}", decoded.opcode,
+                    decoded.operand.value(), decoded.name, pc_);*/
       break;
     case AddressingMode::kIndirect:
       decoded.operand = static_cast<int8_t>(mmu_.ReadByte(pc_ + 1));
-      spdlog::get("stdout")->debug("{0:02x}           | {2}", decoded.opcode,
-                                   decoded.name);
+      /*spdlog::get("file logger")
+          ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode, decoded.name,
+                  pc_);*/
       break;
     default:
-      break;
-  }*/
+      /*  spdlog::get("file logger")
+            ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode,
+         decoded.name, pc_);*/
 
+      break;
+  }
+
+  executed_instructions_.push_back(decoded);
+  while (executed_instructions_.size() > 100) {
+    executed_instructions_.pop_front();
+  }
   switch (static_cast<Instruction>(decoded.opcode)) {
       // CB prefixed opcodes
     case Instruction::prefix_cb: {
-      switch (PrefixCB(mmu_.ReadByte(pc_ + 1))) {
+      decoded = Instructions::Decode(mmu_.ReadByte(pc_ + 1), true);
+      executed_instructions_.push_back(decoded);
+      switch (static_cast<PrefixCB>(decoded.opcode)) {
         case PrefixCB::rlc_b:
           rlc(registers_.b);
           pc_ += 2;
@@ -1569,6 +1582,8 @@ DecodedInstruction CPU::Execute() {
       cycles = 4;
       break;
     case Instruction::stop:
+      // TODO: Implement
+      pc_ += 2;
       cycles = 4;
       break;
       // 8 bit loads
@@ -2143,47 +2158,47 @@ DecodedInstruction CPU::Execute() {
       break;
       // 8 bit ALU
     case Instruction::add_a_a:
-      add(registers_.a);
+      Add(registers_.a);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_b:
-      add(registers_.b);
+      Add(registers_.b);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_c:
-      add(registers_.c);
+      Add(registers_.c);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_d:
-      add(registers_.d);
+      Add(registers_.d);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_e:
-      add(registers_.e);
+      Add(registers_.e);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_h:
-      add(registers_.h);
+      Add(registers_.h);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_l:
-      add(registers_.l);
+      Add(registers_.l);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::add_a_hl:
-      add(mmu_.ReadByte(registers_.hl));
+      Add(mmu_.ReadByte(registers_.hl));
       ++pc_;
       cycles = 8;
       break;
     case Instruction::add_a_d8:
-      add(mmu_.ReadByte(pc_ + 1));
+      Add(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
@@ -2204,311 +2219,148 @@ DecodedInstruction CPU::Execute() {
       break;
     }
     case Instruction::adc_a_a:
-      adc(registers_.a);
+      Adc(registers_.a);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_b:
-      adc(registers_.b);
+      Adc(registers_.b);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_c:
-      adc(registers_.c);
+      Adc(registers_.c);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_d:
-      adc(registers_.d);
+      Adc(registers_.d);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_e:
-      adc(registers_.e);
+      Adc(registers_.e);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_h:
-      adc(registers_.h);
+      Adc(registers_.h);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_hl:
-      adc(mmu_.ReadByte(registers_.hl));
+      Adc(mmu_.ReadByte(registers_.hl));
       ++pc_;
       cycles = 8;
       break;
     case Instruction::adc_a_l:
-      adc(registers_.l);
+      Adc(registers_.l);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::adc_a_d8: {
-      adc(mmu_.ReadByte(pc_ + 1));
+      Adc(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
     }
-    case Instruction::sbc_a_d8: {
-      uint8_t value = mmu_.ReadByte(pc_ + 1);
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - value - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      value + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_d8:
+      Sbc(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
-    }
-    case Instruction::sbc_a_a: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.a - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.a + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_a:
+      Sbc(registers_.a);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_b: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.b - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.b + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_b:
+      Sbc(registers_.b);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_c: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.c - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.c + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_c:
+      Sbc(registers_.c);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_d: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.d - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.d + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_d:
+      Sbc(registers_.d);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_e: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.e - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.e + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_e:
+      Sbc(registers_.e);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_h: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.h - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.h + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_h:
+      Sbc(registers_.h);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_l: {
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - registers_.l - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      registers_.l + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_l:
+      Sbc(registers_.l);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::sbc_a_hl: {
-      uint8_t value = mmu_.ReadByte(registers_.hl);
-      uint8_t carry;
-      flags_.c == true ? carry = 1U : carry = 0U;
-      uint8_t res = registers_.a - value - carry;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      value + carry > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ value ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sbc_a_hl:
+      Sbc(mmu_.ReadByte(registers_.hl));
       pc_ += 2;
       cycles = 8;
       break;
-    }
     case Instruction::and_d8:
-      registers_.a &= mmu_.ReadByte(pc_ + 1);
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
     case Instruction::and_a:
-      registers_.a &= registers_.a;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.a);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_b:
-      registers_.a &= registers_.b;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.b);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_c:
-      registers_.a &= registers_.c;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.c);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_d:
-      registers_.a &= registers_.d;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.d);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_e:
-      registers_.a &= registers_.e;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.e);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_h:
-      registers_.a &= registers_.h;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.h);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_l:
-      registers_.a &= registers_.l;
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(registers_.l);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::and_hl:
-      registers_.a &= mmu_.ReadByte(registers_.hl);
-
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = false;
-      flags_.c = false;
-      flags_.h = true;
+      And(mmu_.ReadByte(registers_.hl));
       pc_ += 2;
       cycles = 8;
       break;
-
-    case Instruction::sub_d8: {
-      uint8_t val = mmu_.ReadByte(pc_ + 1);
-      uint8_t res = registers_.a - val;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      val > registers_.a ? flags_.c = true : flags_.c = false;
-      (registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = true;
-
-      registers_.a = res;
+    case Instruction::sub_d8:
+      Sub(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
-    }
     case Instruction::sub_a:
-      sub(registers_.a);
+      Sub(registers_.a);
       // flags are a special case here
       flags_.c = false;
       flags_.h = false;
@@ -2516,263 +2368,173 @@ DecodedInstruction CPU::Execute() {
       cycles = 4;
       break;
     case Instruction::sub_b:
-      sub(registers_.b);
+      Sub(registers_.b);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::sub_c:
-      sub(registers_.c);
+      Sub(registers_.c);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::sub_d:
-      sub(registers_.d);
+      Sub(registers_.d);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::sub_e:
-      sub(registers_.e);
+      Sub(registers_.e);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::sub_h:
-      sub(registers_.h);
+      Sub(registers_.h);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::sub_l:
-      sub(registers_.l);
+      Sub(registers_.l);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::sub_hl:
-      sub(mmu_.ReadByte(registers_.hl));
+      Sub(mmu_.ReadByte(registers_.hl));
       ++pc_;
       cycles = 4;
       break;
     case Instruction::xor_a:
-      xor(registers_.a);
+      Xor(registers_.a);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::xor_b:
-      xor(registers_.b);
+      Xor(registers_.b);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::xor_c:
-      xor(registers_.c);
+      Xor(registers_.c);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::xor_d: {
-      xor(registers_.d);
+      Xor(registers_.d);
       ++pc_;
       cycles = 4;
       break;
     }
     case Instruction::xor_e: {
-      xor(registers_.e);
+      Xor(registers_.e);
       ++pc_;
       cycles = 4;
       break;
     }
     case Instruction::xor_h: {
-      xor(registers_.h);
+      Xor(registers_.h);
       ++pc_;
       cycles = 4;
       break;
     }
     case Instruction::xor_l: {
-      xor(registers_.l);
+      Xor(registers_.l);
       ++pc_;
       cycles = 4;
       break;
     }
     case Instruction::xor_hl:
-      xor(mmu_.ReadByte(registers_.hl));
+      Xor(mmu_.ReadByte(registers_.hl));
       ++pc_;
       cycles = 4;
       break;
     case Instruction::xor_d8:
-      xor(mmu_.ReadByte(pc_ + 1));
+      Xor(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
     case Instruction::or_a:
-      registers_.a |= registers_.a;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.a);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_b:
-      registers_.a |= registers_.b;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.b);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_c:
-      registers_.a |= registers_.c;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.c);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_d:
-      registers_.a |= registers_.d;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.d);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_e:
-      registers_.a |= registers_.e;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.e);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_h:
-      registers_.a |= registers_.h;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.h);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_l:
-      registers_.a |= registers_.l;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(registers_.l);
       ++pc_;
       cycles = 4;
       break;
     case Instruction::or_hl:
-      registers_.a |= mmu_.ReadByte(registers_.hl);
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(mmu_.ReadByte(registers_.hl));
       ++pc_;
       cycles = 8;
       break;
     case Instruction::or_d8:
-      registers_.a |= mmu_.ReadByte(pc_ + 1);
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
+      Or(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
-    case Instruction::inc_a: {
-      uint8_t res = registers_.a + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.a = res;
+    case Instruction::inc_a:
+      Increment(registers_.a);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::inc_b: {
-      uint8_t res = registers_.b + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.b ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.b = res;
+    case Instruction::inc_b:
+      Increment(registers_.b);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::inc_c: {
-      uint8_t res = registers_.c + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.c ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.c = res;
+    case Instruction::inc_c:
+      Increment(registers_.c);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::inc_d: {
-      uint8_t res = registers_.d + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.d ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.d = res;
+    case Instruction::inc_d:
+      Increment(registers_.d);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::inc_e: {
-      uint8_t res = registers_.e + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.e ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.e = res;
+    case Instruction::inc_e:
+      Increment(registers_.e);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::inc_h: {
-      uint8_t res = registers_.h + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.h ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.h = res;
+    case Instruction::inc_h:
+      Increment(registers_.h);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::inc_l: {
-      uint8_t res = registers_.l + 1;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.l ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
-      registers_.l = res;
+    case Instruction::inc_l:
+      Increment(registers_.l);
       ++pc_;
       cycles = 4;
       break;
-    }
     case Instruction::inc_at_hl: {
       uint8_t val = mmu_.ReadByte(registers_.hl);
-      uint8_t res = val + 1;
-      mmu_.WriteByte(registers_.hl, res);
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (val ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      flags_.n = false;
-
+      Increment(val);
+      mmu_.WriteByte(registers_.hl, val);
       ++pc_;
       cycles = 12;
       break;
@@ -2873,123 +2635,51 @@ DecodedInstruction CPU::Execute() {
       cycles = 12;
       break;
     }
-    case Instruction::cp_a: {
-      uint8_t res = registers_.a - registers_.a;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.a ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.a > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_a:
+      Compare(registers_.a);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_b: {
-      uint8_t res = registers_.a - registers_.b;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.b ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.b > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_b:
+      Compare(registers_.b);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_c: {
-      uint8_t res = registers_.a - registers_.c;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.c ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.c > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_c:
+      Compare(registers_.c);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_d: {
-      uint8_t res = registers_.a - registers_.d;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.d ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.d > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_d:
+      Compare(registers_.d);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_e: {
-      uint8_t res = registers_.a - registers_.e;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.e ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.e > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_e:
+      Compare(registers_.e);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_h: {
-      uint8_t res = registers_.a - registers_.h;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.h ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.h > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_h:
+      Compare(registers_.h);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_l: {
-      uint8_t res = registers_.a - registers_.l;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ registers_.l ^ res) & 0x10 ? flags_.h = true
-                                                 : flags_.h = false;
-      registers_.l > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_l:
+      Compare(registers_.l);
       ++pc_;
       cycles = 4;
       break;
-    }
-    case Instruction::cp_d8: {
-      uint8_t val = mmu_.ReadByte(pc_ + 1);
-      uint8_t res = registers_.a - val;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      (registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      val > registers_.a ? flags_.c = true : flags_.c = false;
-      flags_.n = true;
-
+    case Instruction::cp_d8:
+      Compare(mmu_.ReadByte(pc_ + 1));
       pc_ += 2;
       cycles = 8;
       break;
-    }
-    case Instruction::cp_hl: {
-      uint8_t val = mmu_.ReadByte(registers_.hl);
-      uint8_t res = registers_.a - val;
-
-      res == 0 ? flags_.z = true : flags_.z = false;
-      flags_.n = true;
-      (registers_.a ^ val ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
-      val > registers_.a ? flags_.c = true : flags_.c = false;
-
+    case Instruction::cp_hl:
+      Compare(mmu_.ReadByte(registers_.hl));
       ++pc_;
       cycles = 8;
       break;
-    }
       // 16 bit arithmetic
     case Instruction::inc_bc:
       ++registers_.bc;
@@ -3332,20 +3022,18 @@ DecodedInstruction CPU::Execute() {
       cycles = 16;
       break;
       // Returns
-    case Instruction::ret: {
+    case Instruction::ret:
       pc_ = (mmu_.ReadByte(sp_ + 1) << 8) + mmu_.ReadByte(sp_);
       sp_ += 2;
       cycles = 8;
       break;
-    }
-    case Instruction::reti: {
+    case Instruction::reti:
       pc_ = (mmu_.ReadByte(sp_ + 1) << 8) + mmu_.ReadByte(sp_);
       ime_ = true;
       sp_ += 2;
       cycles = 16;
       break;
-    }
-    case Instruction::ret_z: {
+    case Instruction::ret_z:
       if (flags_.z) {
         pc_ = (mmu_.ReadByte(sp_ + 1) << 8) + mmu_.ReadByte(sp_);
         sp_ += 2;
@@ -3355,8 +3043,7 @@ DecodedInstruction CPU::Execute() {
         cycles = 8;
       }
       break;
-    }
-    case Instruction::ret_nz: {
+    case Instruction::ret_nz:
       if (!flags_.z) {
         pc_ = (mmu_.ReadByte(sp_ + 1) << 8) + mmu_.ReadByte(sp_);
         sp_ += 2;
@@ -3366,8 +3053,7 @@ DecodedInstruction CPU::Execute() {
         cycles = 8;
       }
       break;
-    }
-    case Instruction::ret_c: {
+    case Instruction::ret_c:
       if (flags_.c) {
         pc_ = (mmu_.ReadByte(sp_ + 1) << 8) + mmu_.ReadByte(sp_);
         sp_ += 2;
@@ -3377,8 +3063,7 @@ DecodedInstruction CPU::Execute() {
         cycles = 8;
       }
       break;
-    }
-    case Instruction::ret_nc: {
+    case Instruction::ret_nc:
       if (!flags_.c) {
         pc_ = (mmu_.ReadByte(sp_ + 1) << 8) + mmu_.ReadByte(sp_);
         sp_ += 2;
@@ -3388,20 +3073,32 @@ DecodedInstruction CPU::Execute() {
         cycles = 8;
       }
       break;
-    }
       // Misc
-    case Instruction::daa: {
+    case Instruction::daa:
       //  Decimal adjust register A to get a correct BCD representation after an
       //  arithmetic instruction.
-      // add 6 or sub 6 if flag.n
-      if ((registers_.a & 0x0F) > 0x09)
-        flags_.n ? registers_.a -= 0x06 : registers_.a += 0x06;
-      // TODO: carry stuff
-      // throw;
+      if (!flags_.n) {
+        if (flags_.c || registers_.a > 0x99) {
+          registers_.a += 0x60;
+          flags_.c = true;
+        }
+        if (flags_.h || (registers_.a & 0x0f) > 0x09) {
+          registers_.a += 0x06;
+        }
+      } else {
+        if (flags_.c) {
+          registers_.a -= 0x60;
+        }
+        if (flags_.h) {
+          registers_.a -= 0x06;
+        }
+      }
+
+      registers_.a == 0 ? flags_.z = true : flags_.z = false;
+      flags_.h = false;
       ++pc_;
       cycles = 4;
       break;
-    }
     case Instruction::ld_a_at_c:
       registers_.a = mmu_.ReadByte(0xFF00 + registers_.c);
       ++pc_;
@@ -3475,49 +3172,92 @@ DecodedInstruction CPU::Execute() {
   return decoded;
 }
 
-constexpr void CPU::adc(const uint8_t reg) {
-  uint8_t carry{};
-  flags_.c ? carry = 1U : carry = 0U;
-  const uint16_t res = registers_.a + reg + carry;
+constexpr void CPU::Adc(const uint8_t operand) {
+  const uint16_t res = registers_.a + operand + flags_.c;
 
   (res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
   res > UINT8_MAX ? flags_.c = true : flags_.c = false;
-  // TODO: Verify
-  (registers_.a ^ reg ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+  (registers_.a ^ operand ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
   flags_.n = false;
 
   registers_.a = static_cast<uint8_t>(res);
 }
 
-constexpr void CPU::sub(const uint8_t reg) {
-  const uint8_t res = registers_.a - reg;
+constexpr void CPU::Sub(const uint8_t operand) {
+  const uint8_t res = registers_.a - operand;
 
   res == 0 ? flags_.z = true : flags_.z = false;
-  reg > registers_.a ? flags_.c = true : flags_.c = false;
-  (registers_.a ^ reg ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+  operand > registers_.a ? flags_.c = true : flags_.c = false;
+  (registers_.a ^ operand ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
   flags_.n = true;
 
   registers_.a = res;
 }
 
-constexpr void CPU:: xor
-    (const uint8_t reg) {
-      registers_.a ^= reg;
-      registers_.a == 0 ? flags_.z = true : flags_.z = false;
-      flags_.c = false;
-      flags_.h = false;
-      flags_.n = false;
-    }
+constexpr void CPU::Sbc(const uint8_t operand) {
+  const uint8_t res = registers_.a - operand - flags_.c;
 
-    constexpr void CPU::add(const uint8_t reg) {
-  const uint16_t res = registers_.a + reg;
+  res == 0 ? flags_.z = true : flags_.z = false;
+  operand + flags_.c > registers_.a ? flags_.c = true : flags_.c = false;
+  (registers_.a ^ operand ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+
+  flags_.n = true;
+
+  registers_.a = res;
+}
+
+constexpr void CPU::And(const uint8_t operand) {
+  registers_.a &= operand;
+  registers_.a == 0 ? flags_.z = true : flags_.z = false;
+  flags_.n = false;
+  flags_.c = false;
+  flags_.h = true;
+}
+
+constexpr void CPU::Xor(const uint8_t operand) {
+  registers_.a ^= operand;
+  registers_.a == 0 ? flags_.z = true : flags_.z = false;
+  flags_.c = false;
+  flags_.h = false;
+  flags_.n = false;
+}
+
+constexpr void CPU::Or(const uint8_t operand) {
+  registers_.a |= operand;
+  registers_.a == 0 ? flags_.z = true : flags_.z = false;
+  flags_.c = false;
+  flags_.h = false;
+  flags_.n = false;
+}
+
+constexpr void CPU::Compare(const uint8_t operand) {
+  const uint8_t res = registers_.a - operand;
+
+  res == 0 ? flags_.z = true : flags_.z = false;
+  (registers_.a ^ operand ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+  operand > registers_.a ? flags_.c = true : flags_.c = false;
+  flags_.n = true;
+}
+
+constexpr void CPU::Increment(uint8_t &operand) {
+  const uint8_t res = operand + 1;
+
+  res == 0 ? flags_.z = true : flags_.z = false;
+  (operand ^ 1 ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+  flags_.n = false;
+
+  operand = res;
+}
+
+constexpr void CPU::Add(const uint8_t operand) {
+  const uint16_t res = registers_.a + operand;
 
   // test only the lower 8 bits, otherwise we'll get a wrong result if
   // there's a carry. This applies to every instruction we used a 16bit
   // container for the 8 bit result
   (res & 0xFF) == 0 ? flags_.z = true : flags_.z = false;
   res > UINT8_MAX ? flags_.c = true : flags_.c = false;
-  (registers_.a ^ reg ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
+  (registers_.a ^ operand ^ res) & 0x10 ? flags_.h = true : flags_.h = false;
   flags_.n = false;
 
   registers_.a = static_cast<uint8_t>(res);
@@ -3555,12 +3295,11 @@ constexpr void CPU::rrc(uint8_t &reg) {
 constexpr void CPU::rl(uint8_t &reg) {
   const uint8_t bit = bit_check(reg, 7);
   reg <<= 1;
-  uint8_t carry = 0;
-  flags_.c == true ? carry = 0x01 : carry = 0x00;
   // put the previous carry back in the 0th position
-  reg ^= (-carry ^ reg) & (1U << 0);
+  reg ^= (-static_cast<uint8_t>(flags_.c) ^ reg) & (1U << 0);
   // carry flag holds old bit 7
-  bit == 1U ? flags_.c = true : flags_.c = false;
+  flags_.c = bit;
+  // bit == 1U ? flags_.c = true : flags_.c = false;
   // update Z flag
   reg == 0 ? flags_.z = true : flags_.z = false;
   // reset subtract flag
