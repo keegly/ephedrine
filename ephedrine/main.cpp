@@ -50,11 +50,10 @@ void tick(std::shared_ptr<Gameboy> gb) {
   }
 }
 
-std::unique_ptr<std::vector<uint8_t>> load(std::string name,
-                                           std::ifstream &rom) {
+std::unique_ptr<std::vector<uint8_t>> load(std::ifstream &rom) {
   std::vector<uint8_t> cart;
   rom.seekg(0, std::ios::end);
-  auto sz = rom.tellg();
+  const auto sz = rom.tellg();
   assert(sz != -1);
   rom.seekg(0, std::ios::beg);
   cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
@@ -69,7 +68,7 @@ int main(int argc, char **argv) {
   logger->set_level(spdlog::level::debug);
   file_logger->set_level(spdlog::level::trace);
   bool quit = false;
-  // std::vector<uint8_t> cart;
+  std::vector<uint8_t> cart;
   // auto pgm_dir = std::filesystem::current_path() + "/roms/";
   std::map<std::string, std::ifstream> roms{};
   roms.insert(std::pair<std::string, std::ifstream>(
@@ -95,41 +94,35 @@ int main(int argc, char **argv) {
       "Legend of Zelda: Link's Awakening",
       std::ifstream("../roms/Legend_of_Zelda,_The_-_Link's_Awakening.gb",
                     std::ios::binary)));
-  // std::ifstream in("../roms/gb-test-roms-master/cpu_instrs/cpu_instrs.gb",
-  // std::ios::binary);
-  // test roms
+  roms.insert(std::pair<std::string, std::ifstream>(
+      "CPU Instruction test",
+      std::ifstream("../roms/gb-test-roms-master/cpu_instrs/cpu_instrs.gb",
+                    std::ios::binary)));
+  roms.insert(std::pair<std::string, std::ifstream>(
+      "Tetris", std::ifstream("../roms/tetris.gb", std::ios::binary)));
+  roms.insert(std::pair<std::string, std::ifstream>(
+      "Dr. Mario", std::ifstream("../roms/Dr. Mario.gb", std::ios::binary)));
+  roms.insert(std::pair<std::string, std::ifstream>(
+      "The Castlevania Adventure",
+      std::ifstream("../roms/Castlevania Adventure, The.gb",
+                    std::ios::binary)));
+  roms.insert(std::pair<std::string, std::ifstream>(
+      "Castlevania II",
+      std::ifstream("../roms/Castlevania II - Belmont's Revenge.gb",
+                    std::ios::binary)));
+  roms.insert(std::pair<std::string, std::ifstream>(
+      "Metroid II", std::ifstream("../roms/Metroid II - Return of Samus.gb",
+                                  std::ios::binary)));
+
   // std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/01-special.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/02-interrupts.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/11-op a,(hl).gb",
-  // std::ios::binary);
-
-  /* Passed */
-  // std::ifstream in("../gb-test-roms-master/cpu_instrs/individual/03-op
-  // sp,hl.gb", std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/04-op r,imm.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/05-op rp.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/06-ld r,r.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/08-misc instrs.gb",
-  // std::ios::binary); std::ifstream
-  // in("../roms/gb-test-roms-master/cpu_instrs/individual/09-op r,r.gb",
-  // std::ios::binary); std::ifstream
-  // in("../gb-test-roms-master/cpu_instrs/individual/10-bit ops.gb",
-  // std::ios::binary);
-
+  // in("../roms/gb-test-roms-master/halt_bug.gb",std::ios::binary);
+  // std::ifstream in("../roms/gb-test-roms-master/dmg_sound/dmg_sound.gb",
+  //                 std::ios::binary);
+  /*std::ifstream in("../roms/gb-test-roms-master/instr_timing/instr_timing.gb",
+                   std::ios::binary);*/
   // PPU testing
   // std::ifstream in("../opus5.gb", std::ios::binary);
   // std::ifstream in("../tellinglys.gb", std::ios::binary);
-  // std::ifstream in("../tetris.gb", std::ios::binary);
-  // std::ifstream in("../Dr. Mario.gb", std::ios::binary);
-  // std::ifstream in("../roms/Super Mario Land 2 - 6 Golden Coins.gb",
   // std::ios::binary); std::ifstream in("../roms/Tennis.gb", std::ios::binary);
   // std::ifstream in("../James Bond.gb", std::ios::binary);
   /*in.seekg(0, std::ios::end);
@@ -138,8 +131,8 @@ int main(int argc, char **argv) {
   in.seekg(0, std::ios::beg);
   cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
   in.read((char *)cart.data(), sz);
-  logger->info("cart size 0x{0:x} bytes", cart.size());*/
-  // std::unique_ptr<Gameboy> gb{ new Gameboy{cart} };
+  logger->info("cart size 0x{0:x} bytes", cart.size());
+  std::unique_ptr<Gameboy> gb{new Gameboy{cart, "CPU Instrs"}};*/
   //	auto gb{ std::make_unique<Gameboy>(cart, "Super Mario Land 2 - 6 Golden
   // Coins") };
   auto gb{std::make_unique<Gameboy>()};
@@ -153,7 +146,7 @@ int main(int argc, char **argv) {
   SDL_Window *bg_map_win = SDL_CreateWindow(
       "BG Map", 650, 200, 256, 256, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
   SDL_Window *tile_map_win =
-      SDL_CreateWindow("Tile Map", 650, 500, 128 * 2, 256 * 2,
+      SDL_CreateWindow("Tile Map", 650, 500, 128 * 2, 192 * 2,
                        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
   if (win == nullptr || bg_map_win == nullptr || tile_map_win == nullptr) {
     std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
@@ -178,7 +171,7 @@ int main(int argc, char **argv) {
   SDL_Texture *bg_map_tex = SDL_CreateTexture(
       bg_map_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 256, 256);
   SDL_Texture *tile_map_tex = SDL_CreateTexture(
-      tile_map_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 128, 256);
+      tile_map_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 128, 192);
 
   SDL_Window *window =
       SDL_CreateWindow("Imgui", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -228,8 +221,10 @@ int main(int argc, char **argv) {
               break;
             case SDLK_F1:
               gb->SaveState();
+              logger->info("Saving state");
               break;
             case SDLK_F3:
+              logger->info("Loading state");
               gb->LoadState();
               break;
             case SDLK_p:
@@ -237,7 +232,6 @@ int main(int argc, char **argv) {
               // Logger::logger->debug("--------------------------------");
               break;
             case SDLK_z:
-              // mask |= INPUT_A;
               bitmask_clear(joypad[0], INPUT_A);
               break;
             case SDLK_x:
@@ -304,6 +298,7 @@ int main(int argc, char **argv) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     ImGui::NewFrame();
+    ImGui::ShowDemoWindow();
 
     if (ImGui::Begin("CPU Debug")) {
       reg_state = gb->cpu.GetRegisters();
@@ -341,15 +336,28 @@ int main(int argc, char **argv) {
           z = flag_state.z;
         }
       }
-      // list box printing the last 1000 (?) executed instructions
+      //  ImGui::EndColumns();
+      ImGui::Columns(1);
+      // list box printing the last 100 (?) executed instructions
+      auto executed_instructions = gb->cpu.GetExecutedInstructions();
+      for (const auto &instruction : executed_instructions) {
+        if (instruction.operand.has_value()) {
+          ImGui::Text("%s %hX", instruction.name.data(),
+                      instruction.operand.value());
+        } else {
+          ImGui::Text("%s", instruction.name.data());
+        }
+      }
     }
 
     ImGui::End();
     ImGui::Begin("Sprites");
     auto sprites = gb->ppu.GetAllSprites();
     for (Sprite &s : *sprites) {
-      ImGui::Text("Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X", s.y,
-                  s.x, s.tile, s.flags);
+      ImGui::Text(
+          "Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X OAM Addr: "
+          "0x%0.4X",
+          s.y, s.x, s.tile, s.flags, s.oam_addr);
       if (ImGui::IsItemHovered()) {
         // TODO: make background lighter colored
         ImGui::BeginTooltip();
@@ -373,7 +381,7 @@ int main(int argc, char **argv) {
     for (auto &[key, val] : roms) {
       if (ImGui::Selectable(key.data())) {
         logger->info("Loading game: {0}", key);
-        auto cart = load(key, val);
+        auto cart = load(val);
         gb = std::make_unique<Gameboy>(*cart, key);
         running = true;
       }

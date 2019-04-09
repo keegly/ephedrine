@@ -71,7 +71,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui;C:\Users\Keeg\Documents\code\glfw\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui;C:\Users\Keeg\Documents\code\glfw\include;C:\Users\Keeg\Documents\code\cereal\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Users\Keeg\Documents\code\glfw\lib-vc2015;C:\Program Files\Pthreads\lib\x86;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -79,7 +79,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui;C:\Users\Keeg\Documents\code\glfw\include;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\Keeg\Documents\GitHub\imgui\examples;C:\Users\Keeg\Documents\GitHub\imgui\examples\libs\gl3w;C:\Users\Keeg\Documents\GitHub\imgui;C:\Users\Keeg\Documents\code\glfw\include;C:\Users\Keeg\Documents\code\cereal\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Users\Keeg\Documents\code\glfw\lib-vc2015;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -163,6 +163,7 @@
     <ClCompile Include="..\..\..\GitHub\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\..\..\GitHub\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\..\..\GitHub\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="apu.cpp" />
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="gb.cpp" />
     <ClCompile Include="ppu.cpp" />
@@ -170,6 +171,7 @@
     <ClCompile Include="mmu.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="apu.h" />
     <ClInclude Include="bit_utility.h" />
     <ClInclude Include="catch.hpp" />
     <ClInclude Include="cpu.h" />

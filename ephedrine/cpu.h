@@ -65,6 +65,12 @@ class CPU {
   const CPU* GetState() const { return this; }
   uint16_t GetPC() const { return this->pc_; }
   uint16_t GetSP() const { return this->sp_; }
+  template <class Archive>
+  void serialize(Archive& archive) {
+    archive(cycles, registers_.af, registers_.bc, registers_.de, registers_.hl,
+            flags_.c, flags_.h, flags_.n, flags_.z, sp_, pc_, ime_, halted_,
+            halt_bug_occurred_);
+  }
 
  private:
   Registers registers_{};

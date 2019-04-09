@@ -1,26 +1,26 @@
 #include <fstream>
 
+#include <cereal/archives/binary.hpp>
+#include <cereal/types/array.hpp>
+#include <cereal/types/string.hpp>
+#include <cereal/types/vector.hpp>
 #include "spdlog/spdlog.h"
 
+#include "apu.h"
 #include "cpu.h"
 #include "gb.h"
 #include "mmu.h"
 #include "ppu.h"
-
-//#include "instructions.h"
 
 uint16_t Gameboy::divider_ = 0;
 std::array<uint8_t, 2> Gameboy::joypad{{0xf, 0xf}};
 
 Gameboy::Gameboy() : cpu(mmu), ppu(mmu) {
   // no game
-  divider_ = 0xABCC;
-  timer_ticks_ = 0;
 }
 
-Gameboy::Gameboy(std::vector<uint8_t> &cart, const std::string &game)
-    : mmu(cart), cpu(mmu), ppu(mmu), game_(game) {
-  divider_ = 0xABCC;
+Gameboy::Gameboy(std::vector<uint8_t> &cart, std::string game)
+    : mmu(cart), cpu(mmu), ppu(mmu), game_(std::move(game)) {
   std::ifstream ifs{game_ + ".sav", std::ios::binary};
   if (ifs) {
     mmu.LoadBufferedRAM(ifs);
@@ -39,21 +39,35 @@ Gameboy::~Gameboy() {
   }
 }
 void Gameboy::Load(std::vector<uint8_t> cartridge) {
-  mmu.load(cartridge);
+  mmu.Load(cartridge);
   mmu.boot_rom_enabled = false;
 }
 
 void Gameboy::SaveState() {
-  // TODO
+  std::ofstream ofs{game_ + ".st8", std::ios::binary};
+  if (!ofs) {
+    spdlog::get("stdout")->error("Error saving state");
+    return;
+  }
+  cereal::BinaryOutputArchive oarchive(ofs);
+  oarchive(mmu, cpu, ppu, joypad, current_screen_cycles_, game_, divider_,
+           timer_ticks_);
 }
 
 void Gameboy::LoadState() {
-  // TODO
+  std::ifstream ifs{game_ + ".st8", std::ios::binary};
+  if (!ifs) {
+    spdlog::get("stdout")->error("Error loading state");
+    return;
+  }
+  cereal::BinaryInputArchive iarchive(ifs);
+  iarchive(mmu, cpu, ppu, joypad, current_screen_cycles_, game_, divider_,
+           timer_ticks_);
 }
 
-void Gameboy::TimerTick(int cycles) {
+void Gameboy::TimerTick(const int cycles) {
   // divider is always counting regardless
-  this->divider_ += cycles;
+  divider_ += cycles;
   mmu.SetRegister(DIV, divider_ >> 8);
   const uint8_t timer_ctrl = mmu.ReadByte(TAC);
 
@@ -82,7 +96,7 @@ void Gameboy::TimerTick(int cycles) {
   }
 }
 
-void Gameboy::HandleInput(std::array<uint8_t, 2> jp) {
+void Gameboy::HandleInput(const std::array<uint8_t, 2> jp) {
   // std::lock_guard<std::mutex> lg(mutex);
   // update our internal joypad
   joypad = jp;
@@ -105,12 +119,15 @@ int Gameboy::Tick(int ticks) {
     // handle interrupts
     // if we're on the HALT opcode, need to handle interrupts
     // a little differently
-    if (!cpu.IsHalted()) cpu.HandleInterrupts();
+    if (!cpu.IsHalted()) {
+      cpu.HandleInterrupts();
+    }
     TimerTick(cpu.cycles);
     ppu.Update(cpu.cycles);
     current_screen_cycles += cpu.cycles;
-    --ticks;
-    if (ticks <= 0) break;
+    if (--ticks <= 0) {
+      break;
+    }
   }
   ppu.finished_current_screen = false;
   return current_screen_cycles;

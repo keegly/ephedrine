@@ -3,7 +3,9 @@
 #ifndef INSTRUCTIONS_H
 #define INSTRUCTIONS_H
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <variant>
 
 enum class AddressingMode {
   kNone = 0,
@@ -20,7 +22,8 @@ struct DecodedInstruction {
   // dest?
   int length;
   int cycles;
-  uint16_t operand;
+  std::optional<uint16_t> operand;
+  // uint16_t operand;
   // void (*fp)(void);
 };
 

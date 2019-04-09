@@ -59,6 +59,11 @@ class PPU {
   // debugging ui
   std::unique_ptr<std::vector<Sprite>> GetAllSprites() const;
   std::unique_ptr<std::vector<uint8_t>> RenderSprite(Sprite &s) const;
+  template <class Archive>
+  void serialize(Archive &archive) {
+    archive(finished_current_screen, current_scanline_cycles_,
+            finished_current_line_, oam_search_finished_, vblank_, hblank_);
+  }
 
  private:
   MMU &mmu_;

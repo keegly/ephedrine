@@ -51,6 +51,9 @@
     <ClCompile Include="..\..\..\GitHub\imgui\examples\libs\gl3w\GL\gl3w.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="apu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gb.h">
@@ -72,6 +75,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="bit_utility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="apu.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

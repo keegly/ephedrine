@@ -18,7 +18,7 @@ std::unique_ptr<std::vector<Sprite>> PPU::GetAllSprites() const {
     Sprite s{s.y = mmu_.ReadByte(i), s.x = mmu_.ReadByte(i + 1),
              s.tile = mmu_.ReadByte(i + 2), s.flags = mmu_.ReadByte(i + 3),
              s.oam_addr = i};
-    if (s.x != 0 && s.y != 0) {
+    if (s.x > 0 && s.x < 255 && s.y > 0 && s.y < 255) {
       sprites->push_back(s);
     }
   }
@@ -170,7 +170,7 @@ void PPU::PixelTransfer() {
       }
       bg_map_address += 1;
 
-      if (bg_map_address > (bg_map_base + 0x1F)) bg_map_address = bg_map_base;
+      if (bg_map_address > bg_map_base + 0x1F) bg_map_address = bg_map_base;
     }
 
     // push all background pixels on this row to the "lcd"
@@ -187,8 +187,9 @@ void PPU::PixelTransfer() {
       uint8_t window_x_scroll = mmu_.ReadByte(WX);
       uint8_t window_y_scroll = mmu_.ReadByte(WY);
       if (current_ly >= window_y_scroll) {
+        uint8_t effective_scanline = current_ly - window_y_scroll;
         uint16_t window_tile_map = 0x9800 | bit_check(lcdc, 6) << 10 |
-                                   ((current_ly - window_y_scroll) & 0xf8) << 2;
+                                   (effective_scanline & 0xf8) << 2;
         tile_num = mmu_.ReadByte(window_tile_map);
         // which we can use to grab the actual tile bytes
         if (bit_check(lcdc, 4)) {
@@ -210,7 +211,7 @@ void PPU::PixelTransfer() {
             tileaddr = tileset + (static_cast<int8_t>(tile_num) * 16);
           }
           // get the right vertical row of the tile
-          tileaddr = tileaddr + (current_ly - window_y_scroll) % 8 * 2;
+          tileaddr = tileaddr + effective_scanline % 8 * 2;
           tile_low = mmu_.ReadByte(tileaddr);
           tile_high = mmu_.ReadByte(tileaddr + 1);
           for (int bit = 7; bit >= 0; --bit) {
