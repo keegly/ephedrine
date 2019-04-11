@@ -9,7 +9,6 @@
 #include "ppu.h"
 #include "spdlog/spdlog.h"
 
-MMU::MMU() {}
 MMU::MMU(std::vector<uint8_t> &cart, const bool boot_rom)
     : boot_rom_enabled(boot_rom), cartridge_(cart) {
   Load(cartridge_);
@@ -22,7 +21,7 @@ void MMU::Load(std::vector<uint8_t> &c) {
   spdlog::get("stdout")->debug("Rom Banks: {0}", rom_banks);
   // TODO: fix ram bank
   num_ram_banks = external_ram_size_[cartridge_[0x0149]];
-  spdlog::get("stdout")->debug("Ram Banks: {0:04X}", num_ram_banks);
+  spdlog::get("stdout")->debug("Ram Banks: {0}", num_ram_banks);
   memory_bank_controller_ = static_cast<CartridgeType>(cartridge_[0x0147]);
   if (num_ram_banks > 1) {
     ram_banks_.resize(num_ram_banks);
@@ -30,28 +29,14 @@ void MMU::Load(std::vector<uint8_t> &c) {
     ram_banks_.resize(1);
   }
   if (rom_banks <= 2) {
-    int i = 0;
-    for (uint8_t byte : cartridge_) {
-      memory_[i] = byte;
-      ++i;
-    }
+    std::copy(cartridge_.begin(), cartridge_.end(), memory_.begin());
   } else {
     // load the ROM and the first switchable bank, break the cart into it's
     // individual 8kB banks, and store them for easy usage later
     cart_rom_banks_.resize(rom_banks);
-    for (int i = 0; i < 0x8000; ++i) {
-      memory_[i] = cartridge_[i];
-    }
-
-    int count = 0;
-    int index = 0;
+    std::copy_n(cartridge_.begin(), 0x8000, memory_.begin());
     for (int i = 0; i < rom_banks; ++i) {
-      while (count < 0x4000) {
-        cart_rom_banks_[i][count] = c[index];
-        ++count;
-        ++index;
-      }
-      count = 0;
+      std::copy_n(c.begin() + (0x4000 * i), 0x4000, cart_rom_banks_[i].begin());
     }
   }
 }
@@ -194,13 +179,18 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
 
   // writes here set the lower 5 bits of the ROM bank
   if (address >= 0x2000 && address <= 0x3FFF && rom_banks > 2) {
-    // spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}", loc,
-    // val);
-    if (value == 0 || value == 20 || value == 40 || value == 60) ++value;
+    spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}", address,
+                                 value);
+    // only mbc1
+    if ((memory_bank_controller_ == CartridgeType::kMBC1 ||
+         memory_bank_controller_ == CartridgeType::kMBC1wRAM ||
+         memory_bank_controller_ == CartridgeType::kMBC1wRAMwBattery) &&
+        (value == 0 || value == 20 || value == 40 || value == 60)) {
+      ++value;
+    }
 
     active_rom_bank_ = value % rom_banks;
-    // spdlog::get("stdout")->debug("selecting rom bank {0}",
-    // active_rom_bank);
+    spdlog::get("stdout")->debug("selecting rom bank {0}", active_rom_bank_);
     for (int i = 0; i < 0x4000; ++i) {
       memory_[0x4000 + i] = cart_rom_banks_[value % rom_banks][i];
     }
@@ -224,8 +214,8 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
       bitmask_clear(active_rom_bank_, 0xC0);
       bitmask_set(active_rom_bank_, value << 6);
     }
-    // spdlog::get("stdout")->debug("ram/upper bits of rom bank @ {0:04X} -
-    // {1:02X} val", loc, val);
+    spdlog::get("stdout")->debug(
+        "ram/upper bits of rom bank @ {0:04X} - {1:02X} val", address, value);
     return;
   }
   // Rom/Ram mode

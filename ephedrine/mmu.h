@@ -36,7 +36,7 @@ enum class CartridgeType {
 };
 class MMU {
  public:
-  MMU();
+  MMU() = default;
   MMU(std::vector<uint8_t> &cart, bool boot_rom = false);
   void ShowDebugWindow();
   void Load(std::vector<uint8_t> &c);
