@@ -69,72 +69,6 @@ int main(int argc, char **argv) {
   file_logger->set_level(spdlog::level::trace);
   bool quit = false;
   std::vector<uint8_t> cart;
-  // auto pgm_dir = std::filesystem::current_path() + "/roms/";
-  std::map<std::string, std::ifstream> roms{};
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Super Mario Land 2 - 6 Golden Coins",
-      std::ifstream("../roms/Super Mario Land 2 - 6 Golden Coins.gb",
-                    std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Super Mario Land",
-      std::ifstream("../roms/Super_Mario_Land.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Donkey Kong Land",
-      std::ifstream("../roms/Donkey Kong Land.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Kirby's Dream Land",
-      std::ifstream("../roms/Kirby's Dream Land.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Kirby's Dream Land 2",
-      std::ifstream("../roms/Kirby's Dream Land 2.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Pokemon Blue",
-      std::ifstream("../roms/Pokemon - Blue Version.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Legend of Zelda: Link's Awakening",
-      std::ifstream("../roms/Legend_of_Zelda,_The_-_Link's_Awakening.gb",
-                    std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "CPU Instruction test",
-      std::ifstream("../roms/gb-test-roms-master/cpu_instrs/cpu_instrs.gb",
-                    std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Tetris", std::ifstream("../roms/tetris.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Dr. Mario", std::ifstream("../roms/Dr. Mario.gb", std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "The Castlevania Adventure",
-      std::ifstream("../roms/Castlevania Adventure, The.gb",
-                    std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Castlevania II",
-      std::ifstream("../roms/Castlevania II - Belmont's Revenge.gb",
-                    std::ios::binary)));
-  roms.insert(std::pair<std::string, std::ifstream>(
-      "Metroid II", std::ifstream("../roms/Metroid II - Return of Samus.gb",
-                                  std::ios::binary)));
-
-  // std::ifstream
-  // in("../roms/gb-test-roms-master/halt_bug.gb",std::ios::binary);
-  // std::ifstream in("../roms/gb-test-roms-master/dmg_sound/dmg_sound.gb",
-  //                 std::ios::binary);
-  /*std::ifstream in("../roms/gb-test-roms-master/instr_timing/instr_timing.gb",
-                   std::ios::binary);*/
-  // PPU testing
-  // std::ifstream in("../opus5.gb", std::ios::binary);
-  // std::ifstream in("../tellinglys.gb", std::ios::binary);
-  // std::ios::binary); std::ifstream in("../roms/Tennis.gb", std::ios::binary);
-  // std::ifstream in("../James Bond.gb", std::ios::binary);
-  /*in.seekg(0, std::ios::end);
-  auto sz = in.tellg();
-  assert(sz != -1);
-  in.seekg(0, std::ios::beg);
-  cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
-  in.read((char *)cart.data(), sz);
-  logger->info("cart size 0x{0:x} bytes", cart.size());
-  std::unique_ptr<Gameboy> gb{new Gameboy{cart, "CPU Instrs"}};*/
-  //	auto gb{ std::make_unique<Gameboy>(cart, "Super Mario Land 2 - 6 Golden
-  // Coins") };
   auto gb{std::make_unique<Gameboy>()};
 
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
@@ -195,6 +129,7 @@ int main(int argc, char **argv) {
   bool running = false;
   bool framelimit = false;
   std::array<uint8_t, 2> joypad = {0xf, 0xf};
+  auto roms_dir = std::filesystem::current_path().parent_path() / "roms";
   Registers reg_state;
   Flags flag_state;
   while (!quit) {
@@ -377,15 +312,44 @@ int main(int argc, char **argv) {
     ImGui::End();
 
     ImGui::Begin("Games");
-    // Display our list of games to choose from
-    for (auto &[key, val] : roms) {
-      if (ImGui::Selectable(key.data())) {
-        logger->info("Loading game: {0}", key);
-        auto cart = load(val);
-        gb = std::make_unique<Gameboy>(*cart, key);
-        running = true;
-      }
+    if (ImGui::Button("Open File")) {
+      ImGui::OpenPopup("Open File");
     }
+
+    if (ImGui::BeginPopupModal("Open File", nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+      // display files in current directory
+      // button to go up directory tree
+      // only show .gb files?
+
+      // for now just list roms in rom dir
+      /*  if (ImGui::Button("^")) {
+          roms_dir = roms_dir.parent_path();
+        }*/
+      for (auto &p : std::filesystem::recursive_directory_iterator(roms_dir)) {
+        /*  if (p.is_directory()) {
+            if (ImGui::Selectable(p.path().string().c_str())) {
+              roms_dir /= p.path();
+              break;
+            }
+          }*/
+        // else show all .gb files
+        if (p.path().extension() == ".gb") {
+          if (ImGui::Selectable(p.path().string().c_str())) {
+            auto file = std::ifstream{p.path()};
+            auto cart = load(file);
+            gb = std::make_unique<Gameboy>(*cart, p.path().stem().string());
+            running = true;
+          }
+        }
+      }
+
+      if (ImGui::Button("Cancel")) {
+        ImGui::CloseCurrentPopup();
+      }
+      ImGui::EndPopup();
+    }
+
     ImGui::End();
 
     if (ImGui::Begin("PPU Debug")) {

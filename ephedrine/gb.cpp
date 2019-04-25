@@ -22,6 +22,7 @@ Gameboy::Gameboy() : cpu(mmu), ppu(mmu) {
 Gameboy::Gameboy(std::vector<uint8_t> &cart, std::string game)
     : mmu(cart), cpu(mmu), ppu(mmu), game_(std::move(game)) {
   std::ifstream ifs{game_ + ".sav", std::ios::binary};
+  spdlog::get("stdout")->info("Loading {0}", game_);
   if (ifs) {
     mmu.LoadBufferedRAM(ifs);
   }
