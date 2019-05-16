@@ -82,7 +82,7 @@ void MMU::SaveBufferedRAM(std::ofstream &ofs) {
     }
     default:
       spdlog::get("stdout")->info(
-          "Cartridge type {0} not battery buffered, not saving",
+          "Cartridge type {0} not battery buffered",
           static_cast<uint8_t>(memory_bank_controller_));
       break;
   }
@@ -110,11 +110,15 @@ void MMU::LoadBufferedRAM(std::ifstream &ifs) {
           ifs >> ram_banks_[i][j];
         }
       }
+      // load bank 0 into memory, so the emu can see it
+      // since apparently the game won't necessarily bank switch on start up
+      std::copy(ram_banks_[active_ram_bank_].begin(),
+                ram_banks_[active_ram_bank_].end(), memory_.begin() + 0xA000);
       break;
     }
     default:
       spdlog::get("stdout")->info(
-          "{0} not battery buffered, nothing to load",
+          "Cartridge type {0} not battery buffered",
           static_cast<uint8_t>(memory_bank_controller_));
       break;
   }
@@ -126,9 +130,6 @@ uint8_t MMU::ReadByte(const uint16_t address) {
   // PPU mode
   uint8_t ppu_mode = memory_[STAT] & 0x03;
   // Read from a ROM bank
-  /*if (rom_banks > 2 && loc >= 0x4000 && loc <= 0x7FFF) {
-          return cart_rom_banks_[active_rom_bank][loc - 0x4000];
-  }*/
   // joypad bits 6 and 7 always return 1
   if (address == P1) {
     bitmask_set(memory_[address], 0xC0);  // should be C0
@@ -136,32 +137,27 @@ uint8_t MMU::ReadByte(const uint16_t address) {
   // bit 7 unused and always returns 1, bits 0-2 return 0 when LCD is off
   if (address == STAT) {
     bitmask_set(memory_[address], 0x80);
-    if constexpr (!bit_check(LCDC, 7)) {
+    if (!bit_check(memory_[LCDC], 7)) {
       bitmask_clear(memory_[address], 0x03);
     }
   }
   // Vram inaccessible during mode 3
-  // if (loc >= 0x8000 && loc <= 0x9FFF && ppu_mode == kPPUModeLCDTransfer) {
-  //	return 0xFF;
+  // TODO: fix ppu modes?
+  // if (address >= 0x8000 && address <= 0x9FFF &&
+  //    ppu_mode == kPPUModeLCDTransfer) {
+  //  return 0xFF;
   //}
   // RAM has to be enabled to read from it
   if (address >= 0xA000 && address <= 0xBFFF && !ram_enabled_) {
     return 0xFF;
   }
-  if (address >= 0xA000 && address <= 0xBFFF) {
-    // return ram_banks_[active_ram_bank].at(loc - 0xA000);
-  }
   // Only able to read from OAM in H-Blank and V-Blank
-  // if (loc >= 0xFE00 && loc <= 0xFE9F && ppu_mode >= kPPUModeOAMSearch) {
-  //	return 0xFF;
-  //}
+  // TODO: figure out why this breaks sprites
+  /* if (address >= 0xFE00 && address <= 0xFE9F && ppu_mode >=
+   kPPUModeOAMSearch) { return 0xFF;
+   }*/
 
   return memory_[address];  // needs more logic regarding certain addresses
-                            // returning FF at certain times etc
-
-  // if reading from OAM in mode 2, return 0xFF
-  // if no cartridge_ inserted, reads to ROM/RAM return 0xFF
-  // bank N, mem[0x4000 - 0x7FFF] = cartridge_[0x4000 * N - 0x7FFF *  N]
 }
 
 void MMU::WriteByte(const uint16_t address, uint8_t value) {
@@ -171,62 +167,76 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
 
   // RAM Enable
   if (address >= 0 && address <= 0x1FFF) {
-    // spdlog::get("stdout")->debug("RAM enable @ {0:04x}: {1:02x}", loc,
-    // val);
-    BITMASK_CHECK_ALL(value, 0x0A) ? ram_enabled_ = true : ram_enabled_ = false;
-    // spdlog::get("stdout")->debug("ram_enabled = {0}", ram_enabled);
+    (value & 0x0F) == 0x0A ? ram_enabled_ = true : ram_enabled_ = false;
   }
 
   // writes here set the lower 5 bits of the ROM bank
   if (address >= 0x2000 && address <= 0x3FFF && rom_banks > 2) {
-    spdlog::get("stdout")->debug("bank switching @ {0:04x}: {1:02x}", address,
-                                 value);
-    // only mbc1
-    if ((memory_bank_controller_ == CartridgeType::kMBC1 ||
-         memory_bank_controller_ == CartridgeType::kMBC1wRAM ||
-         memory_bank_controller_ == CartridgeType::kMBC1wRAMwBattery) &&
-        (value == 0 || value == 20 || value == 40 || value == 60)) {
-      ++value;
-    }
-
-    active_rom_bank_ = value % rom_banks;
-    spdlog::get("stdout")->debug("selecting rom bank {0}", active_rom_bank_);
-    for (int i = 0; i < 0x4000; ++i) {
-      memory_[0x4000 + i] = cart_rom_banks_[value % rom_banks][i];
-    }
+    // clear the top 2 bits
+    bitmask_clear(value, 0xE0);
+    // clear the bottom 5 from teh current selected bank val
+    bitmask_clear(active_rom_bank_, 0x1F);
+    // bitmask_set(active_rom_bank_, value);
+    active_rom_bank_ |= value;
+    /*spdlog::get("stdout")->debug("ROM bank switching @ 0x{0:04x}: {1:02x}",
+                                 address, value);*/
+    SelectRomBank(active_rom_bank_);
     return;
   }
   // select the RAM/Upper bits of ROM bank
   if (address >= 0x4000 && address <= 0x5FFF) {
+    // this is only a 2 bit register, so clear the rest
+    bitmask_clear(value, 0xFC);
     // switch RAM banks
-    if (ram_banking_mode_ && num_ram_banks > 0) {
+    if (ram_banking_mode_) {
       std::copy(memory_.begin() + 0xA000, memory_.begin() + 0xC000,
                 ram_banks_[active_ram_bank_].begin());
-      active_ram_bank_ = value % num_ram_banks;
+      spdlog::get("stdout")->debug("RAM bank change @ {0:04X} - {1:02X}",
+                                   address, value);
+      // should we need this?
+      num_ram_banks > 0 ? active_ram_bank_ = value % num_ram_banks
+                        : active_ram_bank_ = 0;
+      spdlog::get("stdout")->debug("Selected RAM bank {0}", active_ram_bank_);
       std::copy(ram_banks_[active_ram_bank_].begin(),
                 ram_banks_[active_ram_bank_].end(), memory_.begin() + 0xA000);
-      // TODO
-      // copy bytes from ram to old ram bank in vector and
-      // then copy the bytes from the new active bank into memory
     }
     // otherwise set the top two bits of the ROM bank
     else {
-      bitmask_clear(active_rom_bank_, 0xC0);
-      bitmask_set(active_rom_bank_, value << 6);
+      spdlog::get("stdout")->debug(
+          "upper two bits of rom bank @ {0:04X} - {1:02X}", address, value);
+      bitmask_clear(active_rom_bank_, 0xE0);
+      bitmask_set(active_rom_bank_, value << 5U);
+      // change rom bank
+      SelectRomBank(active_rom_bank_);
+      // TODO: select ram bank 0
     }
-    spdlog::get("stdout")->debug(
-        "ram/upper bits of rom bank @ {0:04X} - {1:02X} val", address, value);
     return;
   }
   // Rom/Ram mode
   if (address >= 0x6000 && address <= 0x7FFF) {
-    // spdlog::get("stdout")->debug("rom/ram mode set @ {0:04X} - {1:02X}
-    // val", loc, val);
+    // clear all but only the lowest 2 bits?
+    bitmask_clear(value, 0xFC);
+    spdlog::get("stdout")->debug("rom/ram mode set @ {0:04X} - {1:02X}",
+                                 address, value);
     // TODO: if mode 0, switch to ram bank 0 (and stay)
     ram_banking_mode_ = value;
+    if (ram_banking_mode_) {
+      // clear the upper two bits of the selected rom bank
+      // since we're using those bits to select the ram bank now
+      bitmask_clear(active_rom_bank_, 0xC0);
+      SelectRomBank(active_rom_bank_);
+    } else {
+      // select ram bank 0
+      std::copy(memory_.begin() + 0xA000, memory_.begin() + 0xC000,
+                ram_banks_[active_ram_bank_].begin());
+      active_ram_bank_ = 0;
+      spdlog::get("stdout")->debug("Selected RAM bank {0}", active_ram_bank_);
+      std::copy(ram_banks_[active_ram_bank_].begin(),
+                ram_banks_[active_ram_bank_].end(), memory_.begin() + 0xA000);
+    }
     return;
   }
-  uint8_t ppu_mode = memory_[STAT] & 0x03;
+  const uint8_t ppu_mode = memory_[STAT] & 0x03;
   // Vram inaccessible during mode 3
   if (address >= 0x8000 && address <= 0x9FFF &&
       ppu_mode == kPPUModeLCDTransfer) {
@@ -234,11 +244,7 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
   }
   if (address >= 0xA000 && address <= 0xBFFF) {
     // spdlog::get("stdout")->debug("External ram access @ {0:04X} - {1:02X}",
-    // loc, val); if (num_ram_banks > 0) {
-    // ram_banks_[active_ram_bank].at(loc
-    // -
-    // 0xA000) = val;
-    //}
+    // loc, val);
     cart_ram_modified = true;
   }
   // no writing to ROM
@@ -309,6 +315,20 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
 
   memory_.at(address) = value;
   // memory_[loc] = val;
+}
+
+void MMU::SelectRomBank(uint8_t bank) {
+  // only mbc1 is unable to access those banks
+  if ((memory_bank_controller_ == CartridgeType::kMBC1 ||
+       memory_bank_controller_ == CartridgeType::kMBC1wRAM ||
+       memory_bank_controller_ == CartridgeType::kMBC1wRAMwBattery) &&
+      (bank == 0 || bank == 0x20 || bank == 0x40 || bank == 0x60)) {
+    ++bank;
+  }
+  bank %= rom_banks;
+  // spdlog::get("stdout")->debug("selecting rom bank {0}", bank);
+  std::copy(cart_rom_banks_[bank].begin(), cart_rom_banks_[bank].end(),
+            memory_.begin() + 0x4000);
 }
 
 void MMU::SetRegister(uint16_t reg, uint8_t val) {

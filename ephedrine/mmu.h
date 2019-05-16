@@ -75,6 +75,8 @@ class MMU {
   uint8_t active_ram_bank_ = 0;
   bool ram_banking_mode_{};
   bool ram_enabled_{};
+  void SelectRomBank(uint8_t bank);
+  void SelectRamBank(uint8_t bank);
   CartridgeType memory_bank_controller_{};
   // Memory Banking
   // We use "1" bank for both the 2kB and full 8kB single bank scenarios
