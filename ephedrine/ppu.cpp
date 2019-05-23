@@ -242,31 +242,26 @@ void PPU::PixelTransfer() {
 
     // if sprites enabled, render
     if (bit_check(lcdc, 1)) {
-      // 8x8 or 8x16
+      // 8x8 or 8x16 sprites
+      // used for calculating the distance between y flipped sprite tiles
       uint8_t height;
-      bit_check(lcdc, 2) ? height = 16 : height = 8;
+      bit_check(lcdc, 2) ? height = 2 : height = 1;
       std::vector<Pixel> row{};
       for (const Sprite &s : visible_sprites_) {
         tileaddr = 0x8000 + (s.tile * 16);
         uint8_t row_num = (current_ly - (s.y - 16)) * 2;
         // Flip across the Y axis (upside down)
         if (bit_check(s.flags, 6)) {
-          tileaddr = 0x8000 + (((s.tile + 2) * 16) - 1);
+          tileaddr = 0x8000 + (((s.tile + height) * 16) - 1);
           tileaddr -= row_num;
           tile_low = mmu_.ReadByte(tileaddr - 1);
           tile_high = mmu_.ReadByte(tileaddr);
-          /* spdlog::get("stdout")->debug(
-               "tile address: {0:04x} OAM: {3:04X} LY : {1} sprite y pos: {2} "
-               "row num: {4}",
-               tileaddr, current_ly, s.y, s.oam_addr, row_num);*/
         } else {
           tileaddr += row_num;
           tile_low = mmu_.ReadByte(tileaddr);
           tile_high = mmu_.ReadByte(tileaddr + 1);
         }
-        // spdlog::get("stdout")->debug("sprite tile address: {0:04x} OAM:
-        // {3:04X} LY: {1} sprite y pos: {2}", tileaddr, currLY, s.y,
-        // s.oam_addr);
+
         for (int bit = 7; bit >= 0; --bit) {
           uint8_t bit_low = bit_check(tile_low, bit);
           uint8_t bit_high = bit_check(tile_high, bit);
