@@ -139,8 +139,6 @@ int main(int argc, char **argv) {
       cycles += gb->Tick(
           gb->max_cycles_per_vertical_refresh);  // one full screen refresh
                                                  // worth of cycles
-      // logger->debug("{0} cycles, {1} currLY, mode: {2}", cycles,
-      //              gb->mmu.ReadByte(LY), gb->mmu.ReadByte(STAT) & 0x03);
     }
     while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
@@ -167,10 +165,10 @@ int main(int argc, char **argv) {
               // Logger::logger->debug("--------------------------------");
               break;
             case SDLK_z:
-              bitmask_clear(joypad[0], INPUT_A);
+              bitmask_clear(joypad[0], INPUT_B);
               break;
             case SDLK_x:
-              bitmask_clear(joypad[0], INPUT_B);
+              bitmask_clear(joypad[0], INPUT_A);
               break;
             case SDLK_DOWN:
               bitmask_clear(joypad[1], INPUT_DOWN);
@@ -197,10 +195,10 @@ int main(int argc, char **argv) {
         case SDL_KEYUP:
           switch (event.key.keysym.sym) {
             case SDLK_z:
-              bitmask_set(joypad[0], INPUT_A);
+              bitmask_set(joypad[0], INPUT_B);
               break;
             case SDLK_x:
-              bitmask_set(joypad[0], INPUT_B);
+              bitmask_set(joypad[0], INPUT_A);
               break;
             case SDLK_DOWN:
               bitmask_set(joypad[1], INPUT_DOWN);
@@ -308,6 +306,11 @@ int main(int argc, char **argv) {
         ImGui::Image((void *)sprite_tex, ImVec2(64, 64));
         ImGui::EndTooltip();
       }
+      bool flip_x = bit_check(s.flags, 5);
+      bool flip_y = bit_check(s.flags, 6);
+      ImGui::Checkbox("Flip X", &flip_x);
+      ImGui::SameLine();
+      ImGui::Checkbox("Flip Y", &flip_y);
     }
     ImGui::End();
 
@@ -321,9 +324,11 @@ int main(int argc, char **argv) {
       // display files in current directory
       // button to go up directory tree
       // only show .gb files?
+      ImGui::Text(roms_dir.string().c_str());
 
       // for now just list roms in rom dir
-      /*  if (ImGui::Button("^")) {
+      /*  ImGui::SameLine();
+           if (ImGui::Button("^")) {
           roms_dir = roms_dir.parent_path();
         }*/
       for (auto &p : std::filesystem::recursive_directory_iterator(roms_dir)) {
