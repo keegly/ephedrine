@@ -253,3 +253,5 @@ ephedrine/imgui.ini
 /roms/gb-test-roms-master
 /roms/
 *.sna
+*.st8
+*.bak
