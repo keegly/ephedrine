@@ -170,6 +170,7 @@ void PPU::PixelTransfer() {
       }
       bg_map_address += 1;
 
+      // horizontal screen wrap
       if (bg_map_address > bg_map_base + 0x1F) bg_map_address = bg_map_base;
     }
 
@@ -247,13 +248,17 @@ void PPU::PixelTransfer() {
       std::vector<Pixel> row{};
       for (const Sprite &s : visible_sprites_) {
         tileaddr = 0x8000 + (s.tile * 16);
-        uint8_t row_num = ((current_ly) - (s.y - 16)) * 2;
+        uint8_t row_num = (current_ly - (s.y - 16)) * 2;
         // Flip across the Y axis (upside down)
         if (bit_check(s.flags, 6)) {
-          tileaddr = 0x8000 + (((s.tile + 1) * 16) - 1);
+          tileaddr = 0x8000 + (((s.tile + 2) * 16) - 1);
           tileaddr -= row_num;
-          tile_low = mmu_.ReadByte(tileaddr);
-          tile_high = mmu_.ReadByte(tileaddr - 1);
+          tile_low = mmu_.ReadByte(tileaddr - 1);
+          tile_high = mmu_.ReadByte(tileaddr);
+          /* spdlog::get("stdout")->debug(
+               "tile address: {0:04x} OAM: {3:04X} LY : {1} sprite y pos: {2} "
+               "row num: {4}",
+               tileaddr, current_ly, s.y, s.oam_addr, row_num);*/
         } else {
           tileaddr += row_num;
           tile_low = mmu_.ReadByte(tileaddr);
@@ -295,7 +300,7 @@ void PPU::PixelTransfer() {
   finished_current_line_ = true;
 }
 
-void PPU::SetMode(uint8_t mode) {
+void PPU::SetMode(const uint8_t mode) const {
   mmu_.SetPPUMode(mode);
   // set STAT interrupt flag?
 }
@@ -398,8 +403,13 @@ void PPU::Update(int cycles) {
     mmu_.WriteByte(LY, 0);
     current_scanline_cycles_ = 0;
     // fill "screen" with pixels whiter than our lightest palette color?
-    // std::fill(std::begin(pixels_), std::end(pixels_), Pixel {255, 255, 255,
-    // 255 });
+    /*auto white_pixel = Pixel{};
+    white_pixel.r = 255;
+    white_pixel.g = 255;
+    white_pixel.b = 255;
+    white_pixel.a = 255;
+    auto white_pixels = std::array<Pixel, 160>{white_pixel};
+    std::fill(std::begin(pixels_), std::end(pixels_), white_pixels);*/
     return;
   }
   const auto current_ly = mmu_.ReadByte(LY);
@@ -416,7 +426,7 @@ void PPU::Update(int cycles) {
   if (!hblank_ && current_scanline_cycles_ >= (80 + 172) &&
       current_scanline_cycles_ < 456 && current_ly < 144) {
     // H Blank
-    this->SetMode(kPPUModeHBlank);
+    SetMode(kPPUModeHBlank);
     hblank_ = true;
   }
   if (current_scanline_cycles_ >= 456) {

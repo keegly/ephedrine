@@ -79,7 +79,7 @@ class PPU {
   };
   void OAMSearch();
   void PixelTransfer();
-  void SetMode(uint8_t mode);
+  void SetMode(uint8_t mode) const;
   int current_scanline_cycles_ = 0;  // 456 per each individual scan line
   bool finished_current_line_{};
   bool oam_search_finished_{};
