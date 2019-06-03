@@ -50,31 +50,39 @@ DecodedInstruction CPU::Execute() {
   // auto opcode = static_cast<Instruction>(mmu_.ReadByte(pc_));
   const auto opcode = mmu_.ReadByte(pc_);
   auto decoded = Instructions::Decode(opcode);
+  bool debug = false;
   // executed_instructions_.push_back(decoded);
   switch (decoded.mode) {
     case AddressingMode::kDirect:
       decoded.operand = mmu_.ReadByte((pc_ + 2) << 8) + mmu_.ReadByte(pc_ + 1);
-      /*spdlog::get("file logger")
-          ->debug("0x{3:04X}: {0:02x} {1:04x} | {2}", decoded.opcode,
-                  decoded.operand.value(), decoded.name, pc_);*/
+      if (debug) {
+        spdlog::get("file logger")
+            ->debug("0x{3:04X}: {0:02x} {1:04x} | {2}", decoded.opcode,
+                    decoded.operand.value(), decoded.name, pc_);
+      }
       break;
     case AddressingMode::kImmediate:
       decoded.operand = mmu_.ReadByte(pc_ + 1);
-      /*  spdlog::get("file logger")
+      if (debug) {
+        spdlog::get("file logger")
             ->debug("0x{3:04X}: {0:02x} {1:02x}     | {2}", decoded.opcode,
-                    decoded.operand.value(), decoded.name, pc_);*/
+                    decoded.operand.value(), decoded.name, pc_);
+      }
       break;
     case AddressingMode::kIndirect:
       decoded.operand = static_cast<int8_t>(mmu_.ReadByte(pc_ + 1));
-      /*spdlog::get("file logger")
-          ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode, decoded.name,
-                  pc_);*/
+      if (debug) {
+        spdlog::get("file logger")
+            ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode,
+                    decoded.name, pc_);
+      }
       break;
     default:
-      /*  spdlog::get("file logger")
+      if (debug) {
+        spdlog::get("file logger")
             ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode,
-         decoded.name, pc_);*/
-
+                    decoded.name, pc_);
+      }
       break;
   }
 
@@ -3167,6 +3175,19 @@ DecodedInstruction CPU::Execute() {
       // std::cerr << "Unknown Opcode: " << std::hex << opcode << std::dec <<
       // std::endl;
       break;
+  }
+
+  // Update flags register
+  flags_.z ? bit_set(registers_.f, 7) : bit_clear(registers_.f, 7);
+  flags_.n ? bit_set(registers_.f, 6) : bit_clear(registers_.f, 6);
+  flags_.h ? bit_set(registers_.f, 5) : bit_clear(registers_.f, 5);
+  flags_.c ? bit_set(registers_.f, 4) : bit_clear(registers_.f, 4);
+
+  // deal with halt bug
+  if (halt_bug_occurred_ && (Instruction)decoded.opcode != Instruction::halt) {
+    // fail to increase pc
+    pc_ -= decoded.length;
+    halt_bug_occurred_ = false;
   }
 
   return decoded;

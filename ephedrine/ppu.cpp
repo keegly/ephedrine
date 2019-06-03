@@ -73,7 +73,6 @@ std::unique_ptr<std::vector<uint8_t>> PPU::RenderSprite(Sprite &s) const {
 
 void PPU::OAMSearch() {
   // OAM DMA XFER
-  SetMode(kPPUModeOAMSearch);
   // reset our data from the prev line (if any)
   visible_sprites_.clear();
   const uint8_t current_ly = mmu_.ReadByte(LY);
@@ -109,7 +108,6 @@ void PPU::OAMSearch() {
 }
 
 void PPU::PixelTransfer() {
-  SetMode(kPPUModeLCDTransfer);
   uint8_t lcdc = mmu_.ReadByte(LCDC);
   uint8_t current_ly = mmu_.ReadByte(LY);
   // bg pixel xfer, if bit 0 of LCDC is set (bg enable)
@@ -413,10 +411,12 @@ void PPU::Update(int cycles) {
   if (!oam_search_finished_ && current_scanline_cycles_ <= 80 &&
       current_ly < 144) {
     OAMSearch();
+    SetMode(kPPUModeOAMSearch);
   }
   if (!finished_current_line_ && current_scanline_cycles_ >= 80 &&
       current_scanline_cycles_ <= (80 + 172) && current_ly < 144) {
     PixelTransfer();
+    SetMode(kPPUModeLCDTransfer);
   }
   if (!hblank_ && current_scanline_cycles_ >= (80 + 172) &&
       current_scanline_cycles_ < 456 && current_ly < 144) {
@@ -426,7 +426,8 @@ void PPU::Update(int cycles) {
   }
   if (current_scanline_cycles_ >= 456) {
     // inc Ly (next line)
-    mmu_.WriteByte(LY, current_ly + 1);
+    mmu_.SetRegister(LY, current_ly + 1);
+    // mmu_.WriteByte(LY, current_ly + 1);
     current_scanline_cycles_ = 0;
     if (current_ly < 144) {
       const uint8_t lyc = mmu_.ReadByte(LYC);

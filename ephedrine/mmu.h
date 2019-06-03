@@ -48,6 +48,7 @@ class MMU {
   void SaveBufferedRAM(std::ofstream &ofs);
   void LoadBufferedRAM(std::ifstream &ifs);
   size_t CartridgeSize() const { return cartridge_.size(); }
+  CartridgeType GetCartridgeType() const { return memory_bank_controller_; }
   std::unique_ptr<std::vector<uint8_t>> DebugShowMemory(
       uint16_t start_address, uint16_t end_address) const {
     std::vector<uint8_t> memory{memory_.begin() + start_address,
@@ -78,6 +79,8 @@ class MMU {
   void SelectRomBank(uint8_t bank);
   void SelectRamBank(uint8_t bank);
   CartridgeType memory_bank_controller_{};
+  // MBC3
+  bool rtc_enabled_{};
   // Memory Banking
   // We use "1" bank for both the 2kB and full 8kB single bank scenarios
   const uint8_t external_ram_size_[6] = {0, 1, 1, 4, 16, 8};

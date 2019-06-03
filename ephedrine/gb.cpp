@@ -39,6 +39,7 @@ Gameboy::~Gameboy() {
     mmu.cart_ram_modified = false;
   }
 }
+
 void Gameboy::Load(std::vector<uint8_t> cartridge) {
   mmu.Load(cartridge);
   mmu.boot_rom_enabled = false;
@@ -116,7 +117,7 @@ int Gameboy::Tick(int ticks) {
   // mode) : 59, 7275 Hz
   int current_screen_cycles = 0;
   while (!ppu.finished_current_screen) {
-    cpu.Execute();
+    auto prev_inst = cpu.Execute();
     // handle interrupts
     // if we're on the HALT opcode, need to handle interrupts
     // a little differently
