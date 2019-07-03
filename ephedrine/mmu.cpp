@@ -23,6 +23,7 @@ void MMU::Load(std::vector<uint8_t> &c) {
   num_ram_banks = external_ram_size_[cartridge_[0x0149]];
   spdlog::get("stdout")->debug("Ram Banks: {0}", num_ram_banks);
   memory_bank_controller_ = static_cast<CartridgeType>(cartridge_[0x0147]);
+  std::fill(memory_.begin() + 0xA000, memory_.begin() + 0xC000, 0xFF);
   if (num_ram_banks > 1) {
     ram_banks_.resize(num_ram_banks);
   } else {
@@ -65,13 +66,22 @@ void MMU::SaveBufferedRAM(std::ofstream &ofs) {
     case CartridgeType::kMBC5wRumblewRAMwBattery:
     case CartridgeType::kMBC7wSensorwRumblewRAMwBattery: {
       // TODO: save/load all RAM banks
-      std::copy(memory_.begin() + 0xA000, memory_.begin() + 0xC000,
-                ram_banks_[active_ram_bank_].begin());
-      /*    auto out_it = std::ostream_iterator<uint8_t>(ofs);
-          for (const auto &bank : ram_banks_) {
-            std::copy(std::begin(bank), std::end(bank), out_it);
-          }*/
+      if (ram_enabled_) {
+        std::copy(memory_.begin() + 0xA000, memory_.begin() + 0xC000,
+                  ram_banks_[active_ram_bank_].begin());
+        spdlog::get("stdout")->debug("Updating saved ram bank {0}",
+                                     active_ram_bank_);
+      }
+      // spdlog::get("stdout")->debug("Saving {0} ram banks", num_ram_banks);
+      /*   spdlog::get("stdout")->debug("SaveBufferedRAM(): Saving {0} ram
+         banks", num_ram_banks); for (const auto &bank : ram_banks_) {
+           std::copy(bank.begin(), bank.end(),
+         std::ostream_iterator<char>(ofs));
+         }*/
       for (int i = 0; i < num_ram_banks; ++i) {
+        spdlog::get("stdout")->debug(
+            "SaveBufferedRAM(): Saving ram bank {0} of {1}", i + 1,
+            num_ram_banks);
         for (int j = 0; j < 0x2000; ++j) {
           ofs << ram_banks_[i][j];
         }
@@ -99,19 +109,28 @@ void MMU::LoadBufferedRAM(std::ifstream &ifs) {
     case CartridgeType::kMBC5wRAMwBattery:
     case CartridgeType::kMBC5wRumblewRAMwBattery:
     case CartridgeType::kMBC7wSensorwRumblewRAMwBattery: {
-      /* auto in_it = std::istream_iterator<uint8_t>(ifs);
-       for (int i = 0; i < num_ram_banks; ++i) {
-         std::copy(std::begin(ram_banks_[i]), ram_banks_[i].end(), in_it);
-       }*/
+      std::istreambuf_iterator<char> in_it(ifs);
+      std::istreambuf_iterator<char> end;
       for (int i = 0; i < num_ram_banks; ++i) {
-        for (int j = 0; j < 0x2000; ++j) {
-          ifs >> ram_banks_[i][j];
-        }
+        std::copy(in_it, end, ram_banks_[i].begin());
       }
+      spdlog::get("stdout")->info("LoadBufferedRAM(): Loading {0} ram banks",
+                                  num_ram_banks);
+      /* for (int i = 0; i < num_ram_banks; ++i) {
+         for (int j = 0; j < 0x2000; ++j) {
+           ifs >> ram_banks_[i][j];
+         }
+       }*/
       // load bank 0 into memory, so the emu can see it
       // since apparently the game won't necessarily bank switch on start up
-      std::copy(ram_banks_[active_ram_bank_].begin(),
-                ram_banks_[active_ram_bank_].end(), memory_.begin() + 0xA000);
+      // TODO: no longer necessary??
+      if (ram_enabled_) {
+        std::copy(ram_banks_[active_ram_bank_].begin(),
+                  ram_banks_[active_ram_bank_].end(), memory_.begin() + 0xA000);
+        spdlog::get("stdout")->debug(
+            "LoadBufferedRAM(): Copying ram bank {0} to memory",
+            active_ram_bank_);
+      }
       break;
     }
     default:
@@ -127,7 +146,24 @@ uint8_t MMU::ReadByte(const uint16_t address) {
   if (cartridge_.empty()) return 0xFF;
   // PPU mode
   const uint8_t ppu_mode = memory_[STAT] & 0x03;
-  // Read from a ROM bank
+  // Vram inaccessible during mode 3
+  if ((address >= 0x8000 && address <= 0x9FFF) &&
+      ppu_mode == kPPUModeLCDTransfer) {
+    return 0xFF;
+  }
+  // RAM has to be enabled to read from it
+  if (address >= 0xA000 && address <= 0xBFFF && ram_enabled_ == false) {
+    return 0xFF;
+  }
+  // Only able to read from OAM in H-Blank and V-Blank
+  if (address >= 0xFE00 && address <= 0xFE9F && ppu_mode >= kPPUModeOAMSearch) {
+    return 0xFF;
+  }
+  // DMG unused area
+  if (address >= 0xFEA0 && address <= 0xFEFF) {
+    return 0;
+  }
+  /* IO Registers */
   // joypad bits 6 and 7 always return 1
   if (address == P1) {
     bitmask_set(memory_[address], 0xC0);  // should be C0
@@ -143,19 +179,6 @@ uint8_t MMU::ReadByte(const uint16_t address) {
   if (address == IF) {
     bitmask_set(memory_[address], 0xE0);
   }
-  // Vram inaccessible during mode 3
-  if ((address >= 0x8000 && address <= 0x9FFF) &&
-      ppu_mode == kPPUModeLCDTransfer) {
-    return 0xFF;
-  }
-  // RAM has to be enabled to read from it
-  if (address >= 0xA000 && address <= 0xBFFF && !ram_enabled_) {
-    return 0xFF;
-  }
-  // Only able to read from OAM in H-Blank and V-Blank
-  if (address >= 0xFE00 && address <= 0xFE9F && ppu_mode >= kPPUModeOAMSearch) {
-    return 0xFF;
-  }
 
   return memory_[address];  // needs more logic regarding certain addresses
 }
@@ -167,7 +190,24 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
 
   // RAM Enable
   if (address >= 0 && address <= 0x1FFF) {
-    (value & 0x0F) == 0x0A ? ram_enabled_ = true : ram_enabled_ = false;
+    //(value & 0x0F) == 0x0A ? ram_enabled_ = true : ram_enabled_ = false;
+    if ((value & 0x0F) == 0x0A) {
+      // load our ram bank back into memory, as it's been re "connected"
+      ram_enabled_ = true;
+      std::copy(ram_banks_[active_ram_bank_].begin(),
+                ram_banks_[active_ram_bank_].end(), memory_.begin() + 0xA000);
+      spdlog::get("stdout")->debug("Ram enabled, loading bank {0}",
+                                   active_ram_bank_);
+    } else {
+      ram_enabled_ = false;
+      // our cart ram has been disconnected, so save it
+      std::copy(memory_.begin() + 0xA000, memory_.begin() + 0xC000,
+                ram_banks_[active_ram_bank_].begin());
+      // then fill the address space with FF
+      std::fill(memory_.begin() + 0xA000, memory_.begin() + 0xC000, 0xFF);
+      spdlog::get("stdout")->debug("Ram disabled, filling sram with ff");
+    }
+    // spdlog::get("stdout")->debug("Ram enabled: {0}", ram_enabled_);
     // Cover all the MBC3 variants without explicitly listing them all
     if (memory_bank_controller_ >= CartridgeType::kMBC3 &&
         memory_bank_controller_ <= CartridgeType::kMBC3wRAMwBattery) {
@@ -235,7 +275,7 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
           spdlog::get("stdout")->debug("MBC3 Ram bank switch");
           SelectRamBank(value);
         } else if (value <= 0x0C) {
-          // Select the appropriate RTC Register to map
+          // TODO: Select the appropriate RTC Register to map
           spdlog::get("stdout")->debug("MBC3 RTC reg write: {0:02x}", value);
         }
         break;
@@ -278,12 +318,21 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
   if (address >= 0xA000 && address <= 0xBFFF) {
     // spdlog::get("stdout")->debug("External ram access @ {0:04X} - {1:02X}",
     // loc, val);
-    cart_ram_modified = true;
+    // No accessing Cartridge (External) RAM unless it's enabled
+    if (ram_enabled_) {
+      memory_[address] = value;
+      cart_ram_modified = true;
+    } else {
+      spdlog::get("stdout")->debug("Invalid SRam Access @ {0:04X}", address);
+    }
+    return;
   }
   // no writing to ROM
+  // All the legal reasons for writing below 0x8000 are above, so if we get
+  // here, something done goofed.
   if (address <= 0x8000) return;
   // write to "mirror" ram too
-  if (address >= 0xC000 && address < 0xDE00) {
+  if (address >= 0xC000 && address <= 0xDDFF) {
     memory_[address] = value;
     memory_[address + 0x2000] = value;
     return;
@@ -291,20 +340,17 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
   // Writes to DIV reset it
   if (address == DIV) {
     Gameboy::SetTimer(0);
+    return;
     // spdlog::get("stdout")->debug("Timer divider set to 0");
   }
 
-  // any writing to 0xFF44 resets it
-  if (address == 0xFF44) {
-    value = 0;
-  }
-
   // TODO: disallow writing to vram (0x8000 - 0x9FFF) unless in modes 0 - 2
-  if ((address >= 0x8000 && address < 0xA000) &&
+  if ((address >= 0x8000 && address <= 0x9FFF) &&
       ppu_mode == kPPUModeLCDTransfer) {
-    spdlog::get("stdout")->debug("Invalid VRam Access @ {0:04X}");
+    spdlog::get("stdout")->debug("Invalid VRam Access @ {0:04X}", address);
     return;
   }
+
   // Joypad writes (for button/direction selection only change bits 4/5)
   if (address == P1) {
     // spdlog::get("stdout")->debug("write to P1: {0:02x}", val);
@@ -349,6 +395,13 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
       memory_[dest + (i + 2)] = memory_[src + (i + 2)];
       memory_[dest + (i + 3)] = memory_[src + (i + 3)];
     }
+    return;
+  }
+
+  // DMG unused area
+  if (address >= 0xFEA0 && address <= 0xFEFF) {
+    // ignore writes in DMG mode
+    spdlog::get("stdout")->debug("Write to unused area: 0x:{0:4x}", address);
     return;
   }
 

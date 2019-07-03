@@ -382,12 +382,13 @@ int main(int argc, char **argv) {
     }
     ImGui::End();
 
-    // TODO: color code bytes
+    // TODO: color code changed bytes
     if (ImGui::Begin("Memory Viewer")) {
       static ImU32 start_address = 0;
       static ImU32 end_address = 0xff;
       static bool follow_pc = false;
-      std::vector<uint8_t> memory{};
+      static std::vector<uint8_t> memory{};
+      static std::vector<uint8_t> prev_memory{};
       ImGui::PushItemWidth(50);
       ImGui::InputScalar("Start Address", ImGuiDataType_U32, &start_address,
                          nullptr, nullptr, "%04X",
@@ -405,6 +406,7 @@ int main(int argc, char **argv) {
       }
       ImGui::PopItemWidth();
       if (end_address >= start_address && end_address <= 0xFFFF) {
+        prev_memory = memory;
         memory = *gb->mmu.DebugShowMemory(start_address, end_address);
       }
       ImGui::Columns(17, nullptr, false);
@@ -414,13 +416,21 @@ int main(int argc, char **argv) {
                              "%0.4X:", i + start_address);
           ImGui::NextColumn();
         }
-        char label[12];
-        sprintf_s(label, "%0.2X", memory[i]);
-        // ImGui::Text("%0.2X", memory[i]);
-        ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
-        if (ImGui::Selectable(label)) {
-          // TODO: pop up dialog to edit byte in place?
+        /*   char label[12];
+           sprintf_s(label, "%0.2X", memory[i]);*/
+        ImVec4 color;
+        if (prev_memory.size() > 0 && prev_memory.size() == memory.size() &&
+            prev_memory[i] != memory[i]) {
+          // red
+          color = ImVec4(255, 0, 0, 255);
+        } else {
+          color = ImVec4(255, 255, 255, 255);
         }
+        ImGui::TextColored(color, "%0.2X", memory[i]);
+        ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
+        // if (ImGui::Selectable(label)) {
+        //  // TODO: pop up dialog to edit byte in place?
+        //}
         if (ImGui::IsItemHovered()) {
           ImGui::BeginTooltip();
           ImGui::Text("%0.4X", i + start_address);

@@ -87,7 +87,7 @@ DecodedInstruction CPU::Execute() {
   }
 
   executed_instructions_.push_back(decoded);
-  while (executed_instructions_.size() > 100) {
+  while (executed_instructions_.size() > 5) {
     executed_instructions_.pop_front();
   }
   switch (static_cast<Instruction>(decoded.opcode)) {

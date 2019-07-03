@@ -29,14 +29,12 @@ Gameboy::Gameboy(std::vector<uint8_t> &cart, std::string game)
 }
 
 Gameboy::~Gameboy() {
-  // save the "battery buffered" external ram to disk&
+  // save the "battery buffered" external ram to disk
   if (mmu.cart_ram_modified) {
     std::ofstream ofs{game_ + ".sav", std::ios::binary};
     if (ofs) {
       mmu.SaveBufferedRAM(ofs);
     }
-    // unnecessary?
-    mmu.cart_ram_modified = false;
   }
 }
 
@@ -67,9 +65,15 @@ void Gameboy::LoadState() {
            timer_ticks_);
 }
 
-void Gameboy::TimerTick(const int cycles) {
+void Gameboy::TimerTick(int cycles) {
   // divider is always counting regardless
-  divider_ += cycles;
+  // increments every 256 cpu cycles (4.1 mhz) so 64 machine cycles?
+  cycles *= 4;  // convert our machine cycle to cpu cycle
+  divider_tick_cycles_ += cycles;
+  if (divider_tick_cycles_ >= 256) {
+    ++divider_;
+    divider_tick_cycles_ = 0;
+  }
   mmu.SetRegister(DIV, divider_ >> 8);
   const uint8_t timer_ctrl = mmu.ReadByte(TAC);
 

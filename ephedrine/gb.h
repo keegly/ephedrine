@@ -74,6 +74,7 @@ class Gameboy {
   Gameboy(Gameboy &&) = delete;                  // move ctor
   Gameboy &operator=(Gameboy const &) = delete;  // copy assignment
   Gameboy &operator=(Gameboy &&) = delete;       // move assignment
+  ~Gameboy() noexcept;
   void Reset();
   void HandleInput(std::array<uint8_t, 2> jp);
   int Tick(int ticks);
@@ -90,7 +91,6 @@ class Gameboy {
   static std::array<uint8_t, 2> joypad;
   void SaveState();
   void LoadState();
-  ~Gameboy() noexcept;
   template <class Archive>
   void serialize(Archive &archive) {
     archive(mmu, cpu, ppu, joypad, current_screen_cycles_, game_, divider_,
@@ -101,8 +101,10 @@ class Gameboy {
   // a vert refresh after this many cycles
   int current_screen_cycles_ = 0;
   std::string game_{};
+  // Timer/Divider
   static uint16_t divider_;
   int timer_ticks_ = 0;
+  int divider_tick_cycles_ = 0;
   const int clocks_[4] = {1024, 16, 64, 256};
 };
 

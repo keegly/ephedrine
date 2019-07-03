@@ -5,9 +5,6 @@
 #include "spdlog/spdlog.h"
 
 PPU::PPU(MMU &mmu) : mmu_(mmu), pixels_() {
-  current_scanline_cycles_ = 0;
-  oam_search_finished_ = false;
-  finished_current_line_ = false;
   mmu_.WriteByte(LCDC, 0x91);
   mmu_.WriteByte(STAT, 0x85);
 }
