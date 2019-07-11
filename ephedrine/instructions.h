@@ -11,7 +11,8 @@ enum class AddressingMode {
   kNone = 0,
   kImmediate,  // one byte immediately following
   kDirect,     // two bytes immediately following
-  kIndirect
+  kIndirect,
+  kRegister
 };
 
 struct DecodedInstruction {
@@ -32,11 +33,11 @@ class Instructions {
       {0x00, "NOP", AddressingMode::kNone, 1, 4},
       {0x01, "LD BC, d16", AddressingMode::kDirect, 3, 12},
       {0x02, "LD (BC), A", AddressingMode::kNone, 1, 8},
-      {0x03, "INC BC", AddressingMode::kNone, 1, 8},
-      {0x04, "INC B", AddressingMode::kNone, 1, 4},
-      {0x05, "DEC B", AddressingMode::kNone, 1, 5},
+      {0x03, "INC BC", AddressingMode::kRegister, 1, 8},
+      {0x04, "INC B", AddressingMode::kRegister, 1, 4},
+      {0x05, "DEC B", AddressingMode::kRegister, 1, 5},
       {0x06, "LD B, d8", AddressingMode::kImmediate, 2, 8},
-      {0x07, "RLCA", AddressingMode::kNone, 1, 4},
+      {0x07, "RLCA", AddressingMode::kRegister, 1, 4},
       {0x08, "LD (a16), SP", AddressingMode::kDirect, 3, 20},
       {0x09, "ADD HL, BC", AddressingMode::kNone, 1, 8},
       {0x0A, "LD A, (BC)", AddressingMode::kNone, 1, 8},

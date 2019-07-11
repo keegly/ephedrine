@@ -64,7 +64,7 @@ std::unique_ptr<std::vector<uint8_t>> load(std::ifstream &rom) {
 
 int main(int argc, char **argv) {
   auto logger = spdlog::stdout_color_mt("stdout");
-  auto file_logger = spdlog::basic_logger_mt("file logger", "logs/cpu.txt");
+  auto file_logger = spdlog::basic_logger_mt("file logger", "F:/logs/cpu.txt");
   logger->set_level(spdlog::level::debug);
   file_logger->set_level(spdlog::level::trace);
   bool quit = false;
@@ -327,17 +327,21 @@ int main(int argc, char **argv) {
       ImGui::Text(roms_dir.string().c_str());
 
       // for now just list roms in rom dir
-      /*  ImGui::SameLine();
-           if (ImGui::Button("^")) {
-          roms_dir = roms_dir.parent_path();
-        }*/
-      for (auto &p : std::filesystem::recursive_directory_iterator(roms_dir)) {
-        /*  if (p.is_directory()) {
-            if (ImGui::Selectable(p.path().string().c_str())) {
-              roms_dir /= p.path();
-              break;
-            }
-          }*/
+      ImGui::SameLine();
+      if (ImGui::Button("^")) {
+        roms_dir = roms_dir.parent_path();
+      }
+      // for (auto &p :
+      // std::filesystem::recursive_directory_iterator(roms_dir))
+      // {
+      for (auto &p : std::filesystem::directory_iterator(roms_dir)) {
+        if (p.is_directory()) {
+          if (ImGui::Selectable(p.path().string().c_str(), true,
+                                ImGuiSelectableFlags_DontClosePopups)) {
+            roms_dir /= p.path();
+            break;
+          }
+        }
         // else show all .gb files
         if (p.path().extension() == ".gb") {
           if (ImGui::Selectable(p.path().string().c_str())) {
@@ -383,60 +387,93 @@ int main(int argc, char **argv) {
     ImGui::End();
 
     // TODO: color code changed bytes
-    if (ImGui::Begin("Memory Viewer")) {
-      static ImU32 start_address = 0;
-      static ImU32 end_address = 0xff;
-      static bool follow_pc = false;
-      static std::vector<uint8_t> memory{};
-      static std::vector<uint8_t> prev_memory{};
-      ImGui::PushItemWidth(50);
-      ImGui::InputScalar("Start Address", ImGuiDataType_U32, &start_address,
-                         nullptr, nullptr, "%04X",
-                         ImGuiInputTextFlags_CharsHexadecimal);
-      ImGui::SameLine();
-      ImGui::InputScalar("End Address", ImGuiDataType_U32, &end_address,
-                         nullptr, nullptr, "%04X",
-                         ImGuiInputTextFlags_CharsHexadecimal);
-      ImGui::SameLine();
-      ImGui::Checkbox("Follow PC", &follow_pc);
-      if (follow_pc) {
-        start_address = gb->cpu.GetPC();
-        start_address + 0xFF > 0xFFFF ? end_address = 0xFFFF
-                                      : end_address = start_address + 0xFF;
-      }
-      ImGui::PopItemWidth();
-      if (end_address >= start_address && end_address <= 0xFFFF) {
-        prev_memory = memory;
-        memory = *gb->mmu.DebugShowMemory(start_address, end_address);
-      }
-      ImGui::Columns(17, nullptr, false);
-      for (unsigned int i = 0; i < memory.size(); ++i) {
-        if (i % 0x10 == 0) {
-          ImGui::TextColored(ImVec4(255, 255, 255, 255),
-                             "%0.4X:", i + start_address);
-          ImGui::NextColumn();
+    if (ImGui::Begin("MMU Debug")) {
+      ImGuiTabBarFlags tbf = ImGuiTabBarFlags_None;
+      if (ImGui::BeginTabBar("Mem Inspector", tbf)) {
+        if (ImGui::BeginTabItem("Memory")) {
+          static ImU32 start_address = 0;
+          static ImU32 end_address = 0xff;
+          static bool follow_pc = false;
+          static std::vector<uint8_t> memory{};
+          static std::vector<uint8_t> prev_memory{};
+          ImGui::PushItemWidth(50);
+          ImGui::InputScalar("Start Address", ImGuiDataType_U32, &start_address,
+                             nullptr, nullptr, "%04X",
+                             ImGuiInputTextFlags_CharsHexadecimal);
+          ImGui::SameLine();
+          ImGui::InputScalar("End Address", ImGuiDataType_U32, &end_address,
+                             nullptr, nullptr, "%04X",
+                             ImGuiInputTextFlags_CharsHexadecimal);
+          ImGui::SameLine();
+          ImGui::Checkbox("Follow PC", &follow_pc);
+          if (follow_pc) {
+            start_address = gb->cpu.GetPC();
+            start_address + 0xFF > 0xFFFF ? end_address = 0xFFFF
+                                          : end_address = start_address + 0xFF;
+          }
+          ImGui::PopItemWidth();
+          if (end_address >= start_address && end_address <= 0xFFFF) {
+            prev_memory = memory;
+            memory = *gb->mmu.DebugShowMemory(start_address, end_address);
+          }
+          ImGui::Columns(17, nullptr, false);
+          for (unsigned int i = 0; i < memory.size(); ++i) {
+            if (i % 0x10 == 0) {
+              ImGui::TextColored(ImVec4(255, 255, 255, 255),
+                                 "%0.4X:", i + start_address);
+              ImGui::NextColumn();
+            }
+            /*   char label[12];
+               sprintf_s(label, "%0.2X", memory[i]);*/
+            ImVec4 color;
+            if (prev_memory.size() > 0 && prev_memory.size() == memory.size() &&
+                prev_memory[i] != memory[i]) {
+              // red
+              color = ImVec4(255, 0, 0, 255);
+            } else {
+              color = ImVec4(255, 255, 255, 255);
+            }
+            ImGui::TextColored(color, "%0.2X", memory[i]);
+            ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
+            // if (ImGui::Selectable(label)) {
+            //  // TODO: pop up dialog to edit byte in place?
+            //}
+            if (ImGui::IsItemHovered()) {
+              ImGui::BeginTooltip();
+              ImGui::Text("%0.4X", i + start_address);
+              ImGui::EndTooltip();
+            }
+            ImGui::NextColumn();
+          }
+          ImGui::EndTabItem();
         }
-        /*   char label[12];
-           sprintf_s(label, "%0.2X", memory[i]);*/
-        ImVec4 color;
-        if (prev_memory.size() > 0 && prev_memory.size() == memory.size() &&
-            prev_memory[i] != memory[i]) {
-          // red
-          color = ImVec4(255, 0, 0, 255);
-        } else {
-          color = ImVec4(255, 255, 255, 255);
-        }
-        ImGui::TextColored(color, "%0.2X", memory[i]);
-        ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
-        // if (ImGui::Selectable(label)) {
-        //  // TODO: pop up dialog to edit byte in place?
+        // auto ram_banks = gb->mmu.DebugRamBanks();
+        // auto bank = ram_banks[0];
+        // if (ImGui::BeginTabItem("Ram Bank")) {
+        //  for (unsigned int i = 0; i < bank.size(); ++i) {
+        //    if (i % 0x10 == 0) {
+        //      ImGui::TextColored(ImVec4(255, 255, 255, 255), "%0.4X:", i);
+        //      ImGui::NextColumn();
+        //    }
+        //    /*   char label[12];
+        //       sprintf_s(label, "%0.2X", memory[i]);*/
+        //    ImVec4 color;
+        //    color = ImVec4(255, 255, 255, 255);
+        //    ImGui::TextColored(color, "%0.2X", bank[i]);
+        //    ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
+        //    // if (ImGui::Selectable(label)) {
+        //    //  // TODO: pop up dialog to edit byte in place?
+        //    //}
+        //    if (ImGui::IsItemHovered()) {
+        //      ImGui::BeginTooltip();
+        //      ImGui::Text("%0.4X", i);
+        //      ImGui::EndTooltip();
+        //    }
+        //    ImGui::NextColumn();
+        //  }
+        //  ImGui::EndTabItem();
         //}
-        if (ImGui::IsItemHovered()) {
-          ImGui::BeginTooltip();
-          ImGui::Text("%0.4X", i + start_address);
-          ImGui::EndTooltip();
-        }
-        ImGui::NextColumn();
+        ImGui::EndTabBar();
       }
     }
     ImGui::End();

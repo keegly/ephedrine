@@ -54,10 +54,10 @@ DecodedInstruction CPU::Execute() {
   // executed_instructions_.push_back(decoded);
   switch (decoded.mode) {
     case AddressingMode::kDirect:
-      decoded.operand = mmu_.ReadByte((pc_ + 2) << 8) + mmu_.ReadByte(pc_ + 1);
+      decoded.operand = (mmu_.ReadByte(pc_ + 2) << 8) | mmu_.ReadByte(pc_ + 1);
       if (debug) {
         spdlog::get("file logger")
-            ->debug("0x{3:04X}: {0:02x} {1:04x} | {2}", decoded.opcode,
+            ->debug("0x{3:04X}: {0:02X} {1:04X} | {2}", decoded.opcode,
                     decoded.operand.value(), decoded.name, pc_);
       }
       break;
@@ -65,7 +65,7 @@ DecodedInstruction CPU::Execute() {
       decoded.operand = mmu_.ReadByte(pc_ + 1);
       if (debug) {
         spdlog::get("file logger")
-            ->debug("0x{3:04X}: {0:02x} {1:02x}     | {2}", decoded.opcode,
+            ->debug("0x{3:04X}: {0:02X} {1:02X}   | {2}", decoded.opcode,
                     decoded.operand.value(), decoded.name, pc_);
       }
       break;
@@ -73,14 +73,14 @@ DecodedInstruction CPU::Execute() {
       decoded.operand = static_cast<int8_t>(mmu_.ReadByte(pc_ + 1));
       if (debug) {
         spdlog::get("file logger")
-            ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode,
+            ->debug("0x{2:04X}: {0:02X}      | {1}", decoded.opcode,
                     decoded.name, pc_);
       }
       break;
     default:
       if (debug) {
         spdlog::get("file logger")
-            ->debug("0x{2:04X}: {0:02x}     | {1}", decoded.opcode,
+            ->debug("0x{2:04X}: {0:02x}      | {1}", decoded.opcode,
                     decoded.name, pc_);
       }
       break;

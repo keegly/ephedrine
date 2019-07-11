@@ -15,12 +15,12 @@
 uint16_t Gameboy::divider_ = 0;
 std::array<uint8_t, 2> Gameboy::joypad{{0xf, 0xf}};
 
-Gameboy::Gameboy() : cpu(mmu), ppu(mmu) {
+Gameboy::Gameboy() : cpu(mmu), ppu(mmu), apu(mmu) {
   // no game
 }
 
 Gameboy::Gameboy(std::vector<uint8_t> &cart, std::string game)
-    : mmu(cart), cpu(mmu), ppu(mmu), game_(std::move(game)) {
+    : mmu(cart), cpu(mmu), ppu(mmu), apu(mmu), game_(std::move(game)) {
   std::ifstream ifs{game_ + ".sav", std::ios::binary};
   spdlog::get("stdout")->info("Loading {0}", game_);
   if (ifs) {
@@ -37,6 +37,9 @@ Gameboy::~Gameboy() {
     }
   }
 }
+
+// Simulate a toggling of the power switch
+void Gameboy::Reset() {}
 
 void Gameboy::Load(std::vector<uint8_t> cartridge) {
   mmu.Load(cartridge);
