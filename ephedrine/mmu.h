@@ -55,6 +55,9 @@ class MMU {
                                 memory_.begin() + end_address + 1};
     return std::make_unique<std::vector<uint8_t>>(memory);
   }
+  const std::vector<std::array<uint8_t, 0x2000>> *DebugRamBanks() const {
+    return &ram_banks_;
+  }
   // total amount of 8kB memory banks we have
   int rom_banks = 0;
   int num_ram_banks = 0;
