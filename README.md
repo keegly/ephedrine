@@ -6,9 +6,10 @@ Yet another DMG/CGB Gameboy emulator project.
 
 Controls for now are the arrow keys, z, x, enter, and right shift for select. Rebinding and controller support I would like to add at some point.
 
-Dependencies:
-Spdlog - for logging and console debugging output.
+### Dependencies:
 
-ImGui - for the debugging GUI.
+[Spdlog](https://github.com/gabime/spdlog) - for logging and console debugging output.
 
-Cereal - for emulator save stating.
+[Dear ImGui](https://github.com/ocornut/imgui) - for the debugging GUI.
+
+[Cereal](https://github.com/USCiLab/cereal) - for emulator save stating.
