@@ -43,7 +43,7 @@ class MMU {
   uint8_t ReadByte(uint16_t address);
   void WriteByte(uint16_t address, uint8_t value);
   void SetRegister(uint16_t reg, uint8_t val);
-  uint8_t GetRegister(uint16_t reg);
+  uint8_t GetRegister(uint16_t reg) const;
   void SetPPUMode(uint8_t mode);
   void SaveBufferedRAM(std::ofstream &ofs);
   void LoadBufferedRAM(std::ifstream &ifs);

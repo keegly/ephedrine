@@ -116,11 +116,6 @@ void MMU::LoadBufferedRAM(std::ifstream &ifs) {
       }
       spdlog::get("stdout")->info("LoadBufferedRAM(): Loading {0} ram banks",
                                   num_ram_banks);
-      /* for (int i = 0; i < num_ram_banks; ++i) {
-         for (int j = 0; j < 0x2000; ++j) {
-           ifs >> ram_banks_[i][j];
-         }
-       }*/
       // load bank 0 into memory, so the emu can see it
       // since apparently the game won't necessarily bank switch on start up
       // TODO: no longer necessary??
@@ -152,9 +147,10 @@ uint8_t MMU::ReadByte(const uint16_t address) {
     return 0xFF;
   }
   // Cart RAM has to be enabled to read from it
-  if (address >= 0xA000 && address <= 0xBFFF && ram_enabled_ == false) {
+  // for now this is handled by filling the address space at time of ram disable
+  /*if (address >= 0xA000 && address <= 0xBFFF && ram_enabled_ == false) {
     return 0xFF;
-  }
+  }*/
   // Only able to read from OAM in H-Blank and V-Blank
   if (address >= 0xFE00 && address <= 0xFE9F && ppu_mode >= kPPUModeOAMSearch) {
     return 0xFF;
@@ -250,6 +246,7 @@ void MMU::WriteByte(const uint16_t address, uint8_t value) {
         // this is only a 2 bit register, so clear the rest
         bitmask_clear(value, 0xFC);
         // switch RAM banks
+        // TODO: confirm banks can only be switch if RAM_EN
         if (ram_banking_mode_ && ram_enabled_) {
           spdlog::get("stdout")->debug("RAM bank change @ {0:04X} - {1:02X}",
                                        address, value);
@@ -453,7 +450,7 @@ void MMU::SetRegister(uint16_t reg, uint8_t val) {
   memory_[reg] = val;
 }
 
-uint8_t MMU::GetRegister(uint16_t reg) {
+uint8_t MMU::GetRegister(uint16_t reg) const {
   if (reg < 0xFF00) return 0xFF;
   return memory_[reg];
 }

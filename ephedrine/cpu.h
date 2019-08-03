@@ -55,16 +55,14 @@ class CPU {
   int cycles;
   constexpr bool IsHalted() const { return halted_; }
   void nop();
-  void Print() const;
   // for ui
-  Registers GetRegisters() const { return this->registers_; }
+  const Registers& GetRegisters() const { return registers_; }
   const std::deque<DecodedInstruction>& GetExecutedInstructions() const {
     return executed_instructions_;
   }
-  Flags GetFlags() const { return this->flags_; }
-  const CPU* GetState() const { return this; }
-  uint16_t GetPC() const { return this->pc_; }
-  uint16_t GetSP() const { return this->sp_; }
+  Flags GetFlags() const { return flags_; }
+  uint16_t GetPC() const { return pc_; }
+  uint16_t GetSP() const { return sp_; }
   template <class Archive>
   void serialize(Archive& archive) {
     archive(cycles, registers_.af, registers_.bc, registers_.de, registers_.hl,

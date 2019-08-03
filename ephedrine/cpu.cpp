@@ -15,15 +15,6 @@ CPU::CPU(MMU &mmu) : sp_(0xFFFE), mmu_(mmu) {
   cycles = 0;
 }
 
-void CPU::Print() const {
-  spdlog::get("stdout")->debug(
-      "Registers: af:0x{0:04x} bc:0x{1:04x} de:0x{2:04x} hl:0x{3:04x}",
-      registers_.af, registers_.bc, registers_.de, registers_.hl);
-  spdlog::get("stdout")->debug("pc_: 0x{0:04x} sp_: 0x{1:04x}", pc_, sp_);
-  spdlog::get("stdout")->debug("Z: {0} N: {1} H: {2} C: {3}", flags_.z,
-                               flags_.n, flags_.h, flags_.c);
-}
-
 void CPU::HandleInterrupts() {
   uint8_t if_reg = mmu_.ReadByte(IF);
   const uint8_t ie_reg = mmu_.ReadByte(IE);
