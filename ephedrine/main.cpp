@@ -25,41 +25,213 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl.h"
 
-void tick(std::shared_ptr<Gameboy> gb) {
-  bool quit = false;
+// Load a game into a vector, to be easily used by our gb
+std::unique_ptr<std::vector<uint8_t>> Load(std::ifstream &rom) {
+  std::vector<uint8_t> cart;
   using namespace std::chrono_literals;
   constexpr auto tickrate = 16.7427ms;
-  while (!quit) {
-    auto start = std::chrono::high_resolution_clock::now();
-    gb->Tick(1);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration_us =
-        std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    // std::cout << "One tick (70224) cycles completed in: " <<
-    // duration_us.count() << " us.\n";
-
-    if (duration < tickrate) {
-      // sleep for remaining time
-      // auto slp = tickrate - duration_us;
-      // std::cout << "One tick (70224) cycles completed in: " <<
-      // duration_us.count() << " us. Sleeping for " << slp.count() << " ms\n";
-      std::this_thread::sleep_for(tickrate - duration_us);
-    }
-  }
-}
-
-std::unique_ptr<std::vector<uint8_t>> load(std::ifstream &rom) {
-  std::vector<uint8_t> cart;
+  auto start = std::chrono::high_resolution_clock::now();
   rom.seekg(0, std::ios::end);
   const auto sz = rom.tellg();
   assert(sz != -1);
   rom.seekg(0, std::ios::beg);
   cart.resize(static_cast<size_t>(sz) / sizeof(uint8_t));
   rom.read((char *)cart.data(), sz);
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  spdlog::get("stdout")->info("Loading duration: {0} us", duration_us.count());
   spdlog::get("stdout")->info("cart size 0x{0:x} bytes", cart.size());
   return std::make_unique<std::vector<uint8_t>>(cart);
+}
+
+/* Various ImGui "modules" here, broken out in to their own individual functions
+ */
+// CPU registers and individual stepping options
+void ShowCPUDebug(Gameboy &gb, bool &running) {
+  Registers reg_state = gb.cpu.GetRegisters();
+  Flags flag_state = gb.cpu.GetFlags();
+  ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+              1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+  ImGui::Columns(2, "register_columns", true);
+  ImGui::Separator();
+  ImGui::Text("AF= 0x%0.4X", reg_state.af);
+  ImGui::Text("BC= 0x%0.4X", reg_state.bc);
+  ImGui::Text("DE= 0x%0.4X", reg_state.de);
+  ImGui::Text("HL= 0x%0.4X", reg_state.hl);
+  ImGui::Text("PC= 0x%0.4X", gb.cpu.GetPC());
+  ImGui::Text("SP= 0x%0.4X", gb.cpu.GetSP());
+  ImGui::Checkbox("z", &flag_state.z);
+  ImGui::SameLine();
+  ImGui::Checkbox("n", &flag_state.n);
+  ImGui::SameLine();
+  ImGui::Checkbox("h", &flag_state.h);
+  ImGui::SameLine();
+  ImGui::Checkbox("c", &flag_state.c);
+  ImGui::NextColumn();
+  ImGui::Text("IE: 0x%0.2x", gb.mmu.GetRegister(IE));
+  ImGui::Text("IF: 0x%0.2x", gb.mmu.GetRegister(IF));
+  ImGui::Checkbox("running", &running);
+  ImGui::SameLine();
+  if (ImGui::Button("Step")) gb.Tick(1);
+  if (ImGui::Button("Step 1 frame"))
+    gb.Tick(gb.max_cycles_per_vertical_refresh);
+  if (ImGui::Button("Step until Z")) {
+    bool z = false;
+    while (!z) {
+      gb.Tick(1);
+      z = gb.cpu.GetFlags().z;
+    }
+  }
+  //  ImGui::EndColumns();
+  ImGui::Columns(1);
+  // list box printing the last 100 (?) executed instructions
+  auto executed_instructions = gb.cpu.GetExecutedInstructions();
+  for (const auto &instruction : executed_instructions) {
+    if (instruction.operand.has_value()) {
+      ImGui::Text("%s %hX", instruction.name.data(),
+                  instruction.operand.value());
+    } else {
+      ImGui::Text("%s", instruction.name.data());
+    }
+  }
+}
+
+// PPU Registers and relevant
+void ShowPPUDebug(Gameboy &gb, bool &framelimit, bool &ui_draw_bg_map,
+                  bool &ui_draw_tile_map) {
+  ImGui::Checkbox("Background Map", &ui_draw_bg_map);
+  ImGui::Checkbox("Tile Map", &ui_draw_tile_map);
+  ImGui::Checkbox("Framelimiter", &framelimit);
+  ImGui::Text("Mode: %0.2x", gb.mmu.ReadByte(STAT));
+  ImGui::Text("Vblank: %d", gb.ppu.IsVBlank());
+  ImGui::Text("lcdc= 0x%0.2X", gb.mmu.GetRegister(LCDC));
+  ImGui::Text("stat= 0x%0.2X", gb.mmu.GetRegister(STAT));
+  ImGui::Text("ly= 0x%0.2X", gb.mmu.GetRegister(LY));
+}
+
+// Sprite viewer
+void ShowSpriteDebug(Gameboy &gb) {
+  auto sprites = gb.ppu.GetAllSprites();
+  for (Sprite &s : *sprites) {
+    ImGui::Text(
+        "Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X OAM Addr: "
+        "0x%0.4X",
+        s.y, s.x, s.tile, s.flags, s.oam_addr);
+    if (ImGui::IsItemHovered()) {
+      // TODO: make background lighter colored
+      ImGui::BeginTooltip();
+      auto sprite_pixels = *gb.ppu.RenderSprite(s);
+      GLuint sprite_tex;
+      glGenTextures(1, &sprite_tex);
+      glBindTexture(GL_TEXTURE_2D, sprite_tex);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA,
+                   GL_UNSIGNED_BYTE, sprite_pixels.data());
+      ImGui::Image((void *)sprite_tex, ImVec2(64, 64));
+      ImGui::EndTooltip();
+    }
+    bool flip_x = bit_check(s.flags, 5);
+    bool flip_y = bit_check(s.flags, 6);
+    ImGui::Checkbox("Flip X", &flip_x);
+    ImGui::SameLine();
+    ImGui::Checkbox("Flip Y", &flip_y);
+  }
+}
+
+// MMU Memory inspector
+void ShowMMUDebug(Gameboy &gb) {
+  ImGuiTabBarFlags tbf = ImGuiTabBarFlags_None;
+  if (ImGui::BeginTabBar("Mem Inspector", tbf)) {
+    if (ImGui::BeginTabItem("Memory")) {
+      static ImU32 start_address = 0;
+      static ImU32 end_address = 0xff;
+      static bool follow_pc = false;
+      static std::vector<uint8_t> memory{};
+      static std::vector<uint8_t> prev_memory{};
+      ImGui::PushItemWidth(50);
+      ImGui::InputScalar("Start Address", ImGuiDataType_U32, &start_address,
+                         nullptr, nullptr, "%04X",
+                         ImGuiInputTextFlags_CharsHexadecimal);
+      ImGui::SameLine();
+      ImGui::InputScalar("End Address", ImGuiDataType_U32, &end_address,
+                         nullptr, nullptr, "%04X",
+                         ImGuiInputTextFlags_CharsHexadecimal);
+      ImGui::SameLine();
+      ImGui::Checkbox("Follow PC", &follow_pc);
+      if (follow_pc) {
+        start_address = gb.cpu.GetPC();
+        start_address + 0xFF > 0xFFFF ? end_address = 0xFFFF
+                                      : end_address = start_address + 0xFF;
+      }
+      ImGui::PopItemWidth();
+      if (end_address >= start_address && end_address <= 0xFFFF) {
+        prev_memory = memory;
+        memory = *gb.mmu.DebugShowMemory(start_address, end_address);
+      }
+      ImGui::Columns(17, nullptr, false);
+      for (unsigned int i = 0; i < memory.size(); ++i) {
+        if (i % 0x10 == 0) {
+          ImGui::TextColored(ImVec4(255, 255, 255, 255),
+                             "%0.4X:", i + start_address);
+          ImGui::NextColumn();
+        }
+        /*   char label[12];
+           sprintf_s(label, "%0.2X", memory[i]);*/
+        ImVec4 color;
+        if (prev_memory.size() > 0 && prev_memory.size() == memory.size() &&
+            prev_memory[i] != memory[i]) {
+          // red
+          color = ImVec4(255, 0, 0, 255);
+        } else {
+          color = ImVec4(255, 255, 255, 255);
+        }
+        ImGui::TextColored(color, "%0.2X", memory[i]);
+        ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
+        // if (ImGui::Selectable(label)) {
+        //  // TODO: pop up dialog to edit byte in place?
+        //}
+        if (ImGui::IsItemHovered()) {
+          ImGui::BeginTooltip();
+          ImGui::Text("%0.4X", i + start_address);
+          ImGui::EndTooltip();
+        }
+        ImGui::NextColumn();
+      }
+      ImGui::EndTabItem();
+    }
+    // auto ram_banks = gb->mmu.DebugRamBanks();
+    // auto bank = ram_banks[0];
+    // if (ImGui::BeginTabItem("Ram Bank")) {
+    //  for (unsigned int i = 0; i < bank.size(); ++i) {
+    //    if (i % 0x10 == 0) {
+    //      ImGui::TextColored(ImVec4(255, 255, 255, 255), "%0.4X:", i);
+    //      ImGui::NextColumn();
+    //    }
+    //    /*   char label[12];
+    //       sprintf_s(label, "%0.2X", memory[i]);*/
+    //    ImVec4 color;
+    //    color = ImVec4(255, 255, 255, 255);
+    //    ImGui::TextColored(color, "%0.2X", bank[i]);
+    //    ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
+    //    // if (ImGui::Selectable(label)) {
+    //    //  // TODO: pop up dialog to edit byte in place?
+    //    //}
+    //    if (ImGui::IsItemHovered()) {
+    //      ImGui::BeginTooltip();
+    //      ImGui::Text("%0.4X", i);
+    //      ImGui::EndTooltip();
+    //    }
+    //    ImGui::NextColumn();
+    //  }
+    //  ImGui::EndTabItem();
+    //}
+    ImGui::EndTabBar();
+  }
 }
 
 int main(int argc, char **argv) {
@@ -127,11 +299,12 @@ int main(int argc, char **argv) {
   SDL_Event event;
   int cycles = 0;
   bool running = false;
+  // GUI Checkboxes
   bool framelimit = false;
+  bool ui_draw_bg_map = true;
+  bool ui_draw_tile_map = true;
   std::array<uint8_t, 2> joypad = {0xf, 0xf};
   auto roms_dir = std::filesystem::current_path().parent_path() / "roms";
-  Registers reg_state;
-  Flags flag_state;
   while (!quit) {
     auto start = std::chrono::high_resolution_clock::now();
     cycles = 0;
@@ -159,10 +332,6 @@ int main(int argc, char **argv) {
             case SDLK_F3:
               logger->info("Loading state");
               gb->LoadState();
-              break;
-            case SDLK_p:
-              gb->cpu.Print();
-              // Logger::logger->debug("--------------------------------");
               break;
             case SDLK_z:
               bitmask_clear(joypad[0], INPUT_B);
@@ -231,87 +400,15 @@ int main(int argc, char **argv) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     ImGui::NewFrame();
-    ImGui::ShowDemoWindow();
+    // ImGui::ShowDemoWindow();
 
     if (ImGui::Begin("CPU Debug")) {
-      reg_state = gb->cpu.GetRegisters();
-      flag_state = gb->cpu.GetFlags();
-      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                  1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-      ImGui::Columns(2, "register_columns", true);
-      ImGui::Separator();
-      ImGui::Text("AF= 0x%0.4X", reg_state.af);
-      ImGui::Text("BC= 0x%0.4X", reg_state.bc);
-      ImGui::Text("DE= 0x%0.4X", reg_state.de);
-      ImGui::Text("HL= 0x%0.4X", reg_state.hl);
-      ImGui::Text("PC= 0x%0.4X", gb->cpu.GetPC());
-      ImGui::Text("SP= 0x%0.4X", gb->cpu.GetSP());
-      ImGui::Checkbox("z", &flag_state.z);
-      ImGui::SameLine();
-      ImGui::Checkbox("n", &flag_state.n);
-      ImGui::SameLine();
-      ImGui::Checkbox("h", &flag_state.h);
-      ImGui::SameLine();
-      ImGui::Checkbox("c", &flag_state.c);
-      ImGui::NextColumn();
-      ImGui::Text("IE: 0x%0.2x", gb->mmu.GetRegister(IE));
-      ImGui::Text("IF: 0x%0.2x", gb->mmu.GetRegister(IF));
-      ImGui::Checkbox("running", &running);
-      ImGui::SameLine();
-      if (ImGui::Button("Step")) gb->Tick(1);
-      if (ImGui::Button("Step 1 frame"))
-        gb->Tick(gb->max_cycles_per_vertical_refresh);
-      if (ImGui::Button("Step until Z")) {
-        bool z = false;
-        while (!z) {
-          gb->Tick(1);
-          flag_state = gb->cpu.GetFlags();
-          z = flag_state.z;
-        }
-      }
-      //  ImGui::EndColumns();
-      ImGui::Columns(1);
-      // list box printing the last 100 (?) executed instructions
-      auto executed_instructions = gb->cpu.GetExecutedInstructions();
-      for (const auto &instruction : executed_instructions) {
-        if (instruction.operand.has_value()) {
-          ImGui::Text("%s %hX", instruction.name.data(),
-                      instruction.operand.value());
-        } else {
-          ImGui::Text("%s", instruction.name.data());
-        }
-      }
+      ShowCPUDebug(*gb, running);
     }
-
     ImGui::End();
+
     ImGui::Begin("Sprites");
-    auto sprites = gb->ppu.GetAllSprites();
-    for (Sprite &s : *sprites) {
-      ImGui::Text(
-          "Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X OAM Addr: "
-          "0x%0.4X",
-          s.y, s.x, s.tile, s.flags, s.oam_addr);
-      if (ImGui::IsItemHovered()) {
-        // TODO: make background lighter colored
-        ImGui::BeginTooltip();
-        auto sprite_pixels = *gb->ppu.RenderSprite(s);
-        GLuint sprite_tex;
-        glGenTextures(1, &sprite_tex);
-        glBindTexture(GL_TEXTURE_2D, sprite_tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA,
-                     GL_UNSIGNED_BYTE, sprite_pixels.data());
-        ImGui::Image((void *)sprite_tex, ImVec2(64, 64));
-        ImGui::EndTooltip();
-      }
-      bool flip_x = bit_check(s.flags, 5);
-      bool flip_y = bit_check(s.flags, 6);
-      ImGui::Checkbox("Flip X", &flip_x);
-      ImGui::SameLine();
-      ImGui::Checkbox("Flip Y", &flip_y);
-    }
+    ShowSpriteDebug(*gb);
     ImGui::End();
 
     ImGui::Begin("Games");
@@ -345,8 +442,8 @@ int main(int argc, char **argv) {
         // else show all .gb files
         if (p.path().extension() == ".gb") {
           if (ImGui::Selectable(p.path().string().c_str())) {
-            auto file = std::ifstream{p.path()};
-            auto cart = load(file);
+            auto file = std::ifstream{p.path(), std::ios::binary};
+            auto cart = Load(file);
             gb = std::make_unique<Gameboy>(*cart, p.path().stem().string());
             running = true;
           }
@@ -358,21 +455,10 @@ int main(int argc, char **argv) {
       }
       ImGui::EndPopup();
     }
-
     ImGui::End();
 
     if (ImGui::Begin("PPU Debug")) {
-      static bool ui_draw_bg_map = true;
-      ImGui::Checkbox("Background Map", &ui_draw_bg_map);
-      static bool ui_draw_tile_map = true;
-      ImGui::Checkbox("Tile Map", &ui_draw_tile_map);
-      ImGui::Checkbox("Framelimiter", &framelimit);
-      ImGui::Text("Mode: %0.2x", gb->mmu.ReadByte(STAT));
-      ImGui::Text("Vblank: %d", gb->ppu.IsVBlank());
-      ImGui::Text("lcdc= 0x%0.2X", gb->mmu.GetRegister(LCDC));
-      ImGui::Text("stat= 0x%0.2X", gb->mmu.GetRegister(STAT));
-      ImGui::Text("ly= 0x%0.2X", gb->mmu.GetRegister(LY));
-
+      ShowPPUDebug(*gb, framelimit, ui_draw_bg_map, ui_draw_tile_map);
       if (ui_draw_bg_map) {
         SDL_ShowWindow(bg_map_win);
       } else {
@@ -386,95 +472,8 @@ int main(int argc, char **argv) {
     }
     ImGui::End();
 
-    // TODO: color code changed bytes
     if (ImGui::Begin("MMU Debug")) {
-      ImGuiTabBarFlags tbf = ImGuiTabBarFlags_None;
-      if (ImGui::BeginTabBar("Mem Inspector", tbf)) {
-        if (ImGui::BeginTabItem("Memory")) {
-          static ImU32 start_address = 0;
-          static ImU32 end_address = 0xff;
-          static bool follow_pc = false;
-          static std::vector<uint8_t> memory{};
-          static std::vector<uint8_t> prev_memory{};
-          ImGui::PushItemWidth(50);
-          ImGui::InputScalar("Start Address", ImGuiDataType_U32, &start_address,
-                             nullptr, nullptr, "%04X",
-                             ImGuiInputTextFlags_CharsHexadecimal);
-          ImGui::SameLine();
-          ImGui::InputScalar("End Address", ImGuiDataType_U32, &end_address,
-                             nullptr, nullptr, "%04X",
-                             ImGuiInputTextFlags_CharsHexadecimal);
-          ImGui::SameLine();
-          ImGui::Checkbox("Follow PC", &follow_pc);
-          if (follow_pc) {
-            start_address = gb->cpu.GetPC();
-            start_address + 0xFF > 0xFFFF ? end_address = 0xFFFF
-                                          : end_address = start_address + 0xFF;
-          }
-          ImGui::PopItemWidth();
-          if (end_address >= start_address && end_address <= 0xFFFF) {
-            prev_memory = memory;
-            memory = *gb->mmu.DebugShowMemory(start_address, end_address);
-          }
-          ImGui::Columns(17, nullptr, false);
-          for (unsigned int i = 0; i < memory.size(); ++i) {
-            if (i % 0x10 == 0) {
-              ImGui::TextColored(ImVec4(255, 255, 255, 255),
-                                 "%0.4X:", i + start_address);
-              ImGui::NextColumn();
-            }
-            /*   char label[12];
-               sprintf_s(label, "%0.2X", memory[i]);*/
-            ImVec4 color;
-            if (prev_memory.size() > 0 && prev_memory.size() == memory.size() &&
-                prev_memory[i] != memory[i]) {
-              // red
-              color = ImVec4(255, 0, 0, 255);
-            } else {
-              color = ImVec4(255, 255, 255, 255);
-            }
-            ImGui::TextColored(color, "%0.2X", memory[i]);
-            ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
-            // if (ImGui::Selectable(label)) {
-            //  // TODO: pop up dialog to edit byte in place?
-            //}
-            if (ImGui::IsItemHovered()) {
-              ImGui::BeginTooltip();
-              ImGui::Text("%0.4X", i + start_address);
-              ImGui::EndTooltip();
-            }
-            ImGui::NextColumn();
-          }
-          ImGui::EndTabItem();
-        }
-        // auto ram_banks = gb->mmu.DebugRamBanks();
-        // auto bank = ram_banks[0];
-        // if (ImGui::BeginTabItem("Ram Bank")) {
-        //  for (unsigned int i = 0; i < bank.size(); ++i) {
-        //    if (i % 0x10 == 0) {
-        //      ImGui::TextColored(ImVec4(255, 255, 255, 255), "%0.4X:", i);
-        //      ImGui::NextColumn();
-        //    }
-        //    /*   char label[12];
-        //       sprintf_s(label, "%0.2X", memory[i]);*/
-        //    ImVec4 color;
-        //    color = ImVec4(255, 255, 255, 255);
-        //    ImGui::TextColored(color, "%0.2X", bank[i]);
-        //    ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
-        //    // if (ImGui::Selectable(label)) {
-        //    //  // TODO: pop up dialog to edit byte in place?
-        //    //}
-        //    if (ImGui::IsItemHovered()) {
-        //      ImGui::BeginTooltip();
-        //      ImGui::Text("%0.4X", i);
-        //      ImGui::EndTooltip();
-        //    }
-        //    ImGui::NextColumn();
-        //  }
-        //  ImGui::EndTabItem();
-        //}
-        ImGui::EndTabBar();
-      }
+      ShowMMUDebug(*gb);
     }
     ImGui::End();
     ImGui::Render();
@@ -521,7 +520,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  //	gb_thread.join();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplSDL2_Shutdown();
   ImGui::DestroyContext();
