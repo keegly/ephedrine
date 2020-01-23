@@ -1,3 +1,5 @@
+#include "mmu.h"
+
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -5,7 +7,6 @@
 
 #include "bit_utility.h"
 #include "gb.h"
-#include "mmu.h"
 #include "ppu.h"
 #include "spdlog/spdlog.h"
 
@@ -138,7 +139,7 @@ void MMU::LoadBufferedRAM(std::ifstream &ifs) {
 
 uint8_t MMU::ReadByte(const uint16_t address) {
   if (boot_rom_enabled && address <= 0xFF) return boot_rom_[address];
-  if (cartridge_.empty()) return 0xFF;
+  if (cartridge_.empty() && address < 0x8000) return 0xFF;
   // PPU mode
   const uint8_t ppu_mode = memory_[STAT] & 0x03;
   // Vram inaccessible during mode 3
