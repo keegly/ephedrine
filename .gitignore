@@ -256,3 +256,15 @@ ephedrine/imgui.ini
 *.st8
 *.bak
 /ephedrine/Legend of Zelda
+/ephedrine/_deps
+/ephedrine/build
+/ephedrine/CMakeFiles
+/ephedrine/game-boy-test-roms-v6.0
+/ephedrine/F:
+/ephedrine/F_
+/ephedrine/include
+/ephedrine/libs
+/ephedrine/gl3w
+/ephedrine/GL
+*.o
+*.idx
