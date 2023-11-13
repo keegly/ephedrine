@@ -1,7 +1,7 @@
 #include "apu.h"
 #include "gb.h"
 
-APU::APU(MMU& mmu) : mmu_(mmu) {
+APU::APU(MMU &mmu) : mmu_(mmu) {
   // Initialize all the sound registers to their boot up values
   mmu_.SetRegister(NR10, 0x80);
   mmu_.SetRegister(NR11, 0xBF);

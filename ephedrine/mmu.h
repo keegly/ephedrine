@@ -2,6 +2,9 @@
 #define MMU_H
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <vector>
 
 enum class CartridgeType {
@@ -35,7 +38,7 @@ enum class CartridgeType {
   kHuC1wRAMwBattery
 };
 class MMU {
- public:
+public:
   MMU() = default;
   MMU(std::vector<uint8_t> &cart, bool boot_rom = false);
   void ShowDebugWindow();
@@ -49,8 +52,8 @@ class MMU {
   void LoadBufferedRAM(std::ifstream &ifs);
   size_t CartridgeSize() const { return cartridge_.size(); }
   CartridgeType GetCartridgeType() const { return memory_bank_controller_; }
-  std::unique_ptr<std::vector<uint8_t>> DebugShowMemory(
-      uint16_t start_address, uint16_t end_address) const {
+  std::unique_ptr<std::vector<uint8_t>>
+  DebugShowMemory(uint16_t start_address, uint16_t end_address) const {
     std::vector<uint8_t> memory{memory_.begin() + start_address,
                                 memory_.begin() + end_address + 1};
     return std::make_unique<std::vector<uint8_t>>(memory);
@@ -63,14 +66,13 @@ class MMU {
   int num_ram_banks = 0;
   bool boot_rom_enabled = true;
   bool cart_ram_modified = false;
-  template <class Archive>
-  void serialize(Archive &archive) {
+  template <class Archive> void serialize(Archive &archive) {
     archive(rom_banks, num_ram_banks, cart_ram_modified, memory_, ram_banks_,
             active_rom_bank_, active_ram_bank_, ram_banking_mode_,
             ram_enabled_);
   }
 
- private:
+private:
   std::array<uint8_t, 0x10000> memory_{};
   std::vector<uint8_t> cartridge_{};
   std::vector<std::array<uint8_t, 0x4000>> cart_rom_banks_{};
@@ -113,4 +115,4 @@ class MMU {
       0x3E, 0x01, 0xE0, 0x50};
 };
 
-#endif  // !MMU_H
+#endif // !MMU_H

@@ -1,10 +1,10 @@
 #include <fstream>
 
+#include "spdlog/spdlog.h"
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/array.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
-#include "spdlog/spdlog.h"
 
 #include "apu.h"
 #include "cpu.h"
@@ -28,7 +28,7 @@ Gameboy::Gameboy(std::vector<uint8_t> &cart, std::string game)
   }
 }
 
-Gameboy::~Gameboy() {
+Gameboy::~Gameboy() noexcept {
   // save the "battery buffered" external ram to disk
   if (mmu.cart_ram_modified) {
     std::ofstream ofs{game_ + ".sav", std::ios::binary};
@@ -71,7 +71,7 @@ void Gameboy::LoadState() {
 void Gameboy::TimerTick(int cycles) {
   // divider is always counting regardless
   // increments every 256 cpu cycles (4.1 mhz) so 64 machine cycles?
-  cycles *= 4;  // convert our machine cycle to cpu cycle
+  cycles *= 4; // convert our machine cycle to cpu cycle
   divider_tick_cycles_ += cycles;
   if (divider_tick_cycles_ >= 256) {
     ++divider_;
@@ -80,7 +80,8 @@ void Gameboy::TimerTick(int cycles) {
   mmu.SetRegister(DIV, divider_ >> 8);
   const uint8_t timer_ctrl = mmu.ReadByte(TAC);
 
-  if (!bit_check(timer_ctrl, 2)) return;
+  if (!bit_check(timer_ctrl, 2))
+    return;
 
   // timer enabled
   const uint8_t timer_modulo = mmu.ReadByte(TMA);
