@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include <SDL_opengl.h>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -11,25 +12,23 @@
 #include <thread>
 #include <vector>
 // Testing
+#include "SDL_video.h"
 #include "bit_utility.h"
-#include "catch.hpp"
+// #include "catch.hpp"
 #include "gb.h"
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/spdlog.h"
 
 // UI
-#include <cstdio>
-#include "GL/gl3w.h"
+#include "backends/imgui_impl_opengl3.h"
+#include "backends/imgui_impl_sdl2.h"
 #include "imgui.h"
-#include "imgui_impl_opengl3.h"
-#include "imgui_impl_sdl.h"
+#include <cstdio>
 
 // Load a game into a vector, to be easily used by our gb
 std::unique_ptr<std::vector<uint8_t>> Load(std::ifstream &rom) {
   std::vector<uint8_t> cart;
-  using namespace std::chrono_literals;
-  constexpr auto tickrate = 16.7427ms;
   auto start = std::chrono::high_resolution_clock::now();
   rom.seekg(0, std::ios::end);
   const auto sz = rom.tellg();
@@ -40,8 +39,6 @@ std::unique_ptr<std::vector<uint8_t>> Load(std::ifstream &rom) {
   auto end = std::chrono::high_resolution_clock::now();
   auto duration_us =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
   spdlog::get("stdout")->info("Loading duration: {0} us", duration_us.count());
   spdlog::get("stdout")->info("cart size 0x{0:x} bytes", cart.size());
   return std::make_unique<std::vector<uint8_t>>(cart);
@@ -57,12 +54,12 @@ void ShowCPUDebug(Gameboy &gb, bool &running) {
               1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
   ImGui::Columns(2, "register_columns", true);
   ImGui::Separator();
-  ImGui::Text("AF= 0x%0.4X", reg_state.af);
-  ImGui::Text("BC= 0x%0.4X", reg_state.bc);
-  ImGui::Text("DE= 0x%0.4X", reg_state.de);
-  ImGui::Text("HL= 0x%0.4X", reg_state.hl);
-  ImGui::Text("PC= 0x%0.4X", gb.cpu.GetPC());
-  ImGui::Text("SP= 0x%0.4X", gb.cpu.GetSP());
+  ImGui::Text("AF= 0x%.4X", reg_state.af);
+  ImGui::Text("BC= 0x%.4X", reg_state.bc);
+  ImGui::Text("DE= 0x%.4X", reg_state.de);
+  ImGui::Text("HL= 0x%.4X", reg_state.hl);
+  ImGui::Text("PC= 0x%.4X", gb.cpu.GetPC());
+  ImGui::Text("SP= 0x%.4X", gb.cpu.GetSP());
   ImGui::Checkbox("z", &flag_state.z);
   ImGui::SameLine();
   ImGui::Checkbox("n", &flag_state.n);
@@ -71,11 +68,12 @@ void ShowCPUDebug(Gameboy &gb, bool &running) {
   ImGui::SameLine();
   ImGui::Checkbox("c", &flag_state.c);
   ImGui::NextColumn();
-  ImGui::Text("IE: 0x%0.2x", gb.mmu.GetRegister(IE));
-  ImGui::Text("IF: 0x%0.2x", gb.mmu.GetRegister(IF));
+  ImGui::Text("IE: 0x%.2x", gb.mmu.GetRegister(IE));
+  ImGui::Text("IF: 0x%.2x", gb.mmu.GetRegister(IF));
   ImGui::Checkbox("running", &running);
   ImGui::SameLine();
-  if (ImGui::Button("Step")) gb.Tick(1);
+  if (ImGui::Button("Step"))
+    gb.Tick(1);
   if (ImGui::Button("Step 1 frame"))
     gb.Tick(gb.max_cycles_per_vertical_refresh);
   if (ImGui::Button("Step until Z")) {
@@ -105,43 +103,42 @@ void ShowPPUDebug(Gameboy &gb, bool &framelimit, bool &ui_draw_bg_map,
   ImGui::Checkbox("Background Map", &ui_draw_bg_map);
   ImGui::Checkbox("Tile Map", &ui_draw_tile_map);
   ImGui::Checkbox("Framelimiter", &framelimit);
-  ImGui::Text("Mode: %0.2x", gb.mmu.ReadByte(STAT));
+  ImGui::Text("Mode: %.2x", gb.mmu.ReadByte(STAT));
   ImGui::Text("Vblank: %d", gb.ppu.IsVBlank());
-  ImGui::Text("lcdc= 0x%0.2X", gb.mmu.GetRegister(LCDC));
-  ImGui::Text("stat= 0x%0.2X", gb.mmu.GetRegister(STAT));
-  ImGui::Text("ly= 0x%0.2X", gb.mmu.GetRegister(LY));
+  ImGui::Text("lcdc= 0x%.2X", gb.mmu.GetRegister(LCDC));
+  ImGui::Text("stat= 0x%.2X", gb.mmu.GetRegister(STAT));
+  ImGui::Text("ly= 0x%.2X", gb.mmu.GetRegister(LY));
 }
 
 // Sprite viewer
-void ShowSpriteDebug(Gameboy &gb) {
-  auto sprites = gb.ppu.GetAllSprites();
-  for (Sprite &s : *sprites) {
-    ImGui::Text(
-        "Y: 0x%0.2X X: 0x%0.2X Tile: 0x%0.2X Flags: 0x%0.2X OAM Addr: "
-        "0x%0.4X",
-        s.y, s.x, s.tile, s.flags, s.oam_addr);
-    if (ImGui::IsItemHovered()) {
-      // TODO: make background lighter colored
-      ImGui::BeginTooltip();
-      auto sprite_pixels = *gb.ppu.RenderSprite(s);
-      GLuint sprite_tex;
-      glGenTextures(1, &sprite_tex);
-      glBindTexture(GL_TEXTURE_2D, sprite_tex);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA,
-                   GL_UNSIGNED_BYTE, sprite_pixels.data());
-      ImGui::Image((void *)sprite_tex, ImVec2(64, 64));
-      ImGui::EndTooltip();
-    }
-    bool flip_x = bit_check(s.flags, 5);
-    bool flip_y = bit_check(s.flags, 6);
-    ImGui::Checkbox("Flip X", &flip_x);
-    ImGui::SameLine();
-    ImGui::Checkbox("Flip Y", &flip_y);
-  }
-}
+// void ShowSpriteDebug(Gameboy &gb) {
+//   auto sprites = gb.ppu.GetAllSprites();
+//   for (Sprite &s : *sprites) {
+//     ImGui::Text("Y: 0x%.2X X: 0x%.2X Tile: 0x%.2X Flags: 0x%.2X OAM Addr: "
+//                 "0x%.4X",
+//                 s.y, s.x, s.tile, s.flags, s.oam_addr);
+//     if (ImGui::IsItemHovered()) {
+//       // TODO: make background lighter colored
+//       ImGui::BeginTooltip();
+//       auto sprite_pixels = *gb.ppu.RenderSprite(s);
+//       GLuint sprite_tex;
+//       glGenTextures(1, &sprite_tex);
+//       glBindTexture(GL_TEXTURE_2D, sprite_tex);
+//       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//       glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+//       glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+//       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 8, 8, 0, GL_RGBA,
+//                    GL_UNSIGNED_BYTE, sprite_pixels.data());
+//       ImGui::Image((void *)sprite_tex, ImVec2(64, 64));
+//       ImGui::EndTooltip();
+//     }
+//     bool flip_x = bit_check(s.flags, 5);
+//     bool flip_y = bit_check(s.flags, 6);
+//     ImGui::Checkbox("Flip X", &flip_x);
+//     ImGui::SameLine();
+//     ImGui::Checkbox("Flip Y", &flip_y);
+//   }
+// }
 
 // MMU Memory inspector
 void ShowMMUDebug(Gameboy &gb) {
@@ -177,7 +174,7 @@ void ShowMMUDebug(Gameboy &gb) {
       for (unsigned int i = 0; i < memory.size(); ++i) {
         if (i % 0x10 == 0) {
           ImGui::TextColored(ImVec4(255, 255, 255, 255),
-                             "%0.4X:", i + start_address);
+                             "%.4X:", i + start_address);
           ImGui::NextColumn();
         }
         /*   char label[12];
@@ -190,14 +187,14 @@ void ShowMMUDebug(Gameboy &gb) {
         } else {
           color = ImVec4(255, 255, 255, 255);
         }
-        ImGui::TextColored(color, "%0.2X", memory[i]);
+        ImGui::TextColored(color, "%.2X", memory[i]);
         ImGui::SetColumnWidth(ImGui::GetColumnIndex(), 25);
         // if (ImGui::Selectable(label)) {
         //  // TODO: pop up dialog to edit byte in place?
         //}
         if (ImGui::IsItemHovered()) {
           ImGui::BeginTooltip();
-          ImGui::Text("%0.4X", i + start_address);
+          ImGui::Text("%.4X", i + start_address);
           ImGui::EndTooltip();
         }
         ImGui::NextColumn();
@@ -245,52 +242,67 @@ int main(int argc, char **argv) {
 
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
     std::cout << "SDL_Init Error: " << SDL_GetError() << std::endl;
-  }
-
-  SDL_Window *win = SDL_CreateWindow("Ephedrine", 300, 200, 160 * 2, 144 * 2,
-                                     SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-  SDL_Window *bg_map_win = SDL_CreateWindow(
-      "BG Map", 650, 200, 256, 256, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-  SDL_Window *tile_map_win =
-      SDL_CreateWindow("Tile Map", 650, 500, 128 * 2, 192 * 2,
-                       SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-  if (win == nullptr || bg_map_win == nullptr || tile_map_win == nullptr) {
-    std::cout << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
     return 1;
   }
 
-  SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-  SDL_Renderer *bg_map_ren =
-      SDL_CreateRenderer(bg_map_win, -1, SDL_RENDERER_ACCELERATED);
-  SDL_Renderer *tile_map_ren =
-      SDL_CreateRenderer(tile_map_win, -1, SDL_RENDERER_ACCELERATED);
-  if (ren == nullptr || bg_map_ren == nullptr || tile_map_ren == nullptr) {
-    std::cout << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
-    return 1;
-  }
-
-  SDL_SetRenderDrawColor(ren, 0, 0, 0, SDL_ALPHA_OPAQUE);
-  SDL_RenderClear(ren);
-
-  SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_RGBA32,
-                                       SDL_TEXTUREACCESS_STATIC, 160, 144);
-  SDL_Texture *bg_map_tex = SDL_CreateTexture(
-      bg_map_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 256, 256);
-  SDL_Texture *tile_map_tex = SDL_CreateTexture(
-      tile_map_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 128, 192);
-
+  // Create window and graphics context
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+  SDL_WindowFlags window_flags =
+      (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
+                        SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_SHOWN);
   SDL_Window *window =
-      SDL_CreateWindow("Imgui", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                       1024, 768, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+      SDL_CreateWindow("Ephedrine | 2023", SDL_WINDOWPOS_CENTERED,
+                       SDL_WINDOWPOS_CENTERED, 1600, 900, window_flags);
   SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-  gl3wInit();
+  SDL_GL_MakeCurrent(window, gl_context);
+  SDL_GL_SetSwapInterval(1);
 
+  // Setup Imgui
+  IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-  ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-  ImGui_ImplOpenGL3_Init("#version 410 core");
+  (void)io;
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-  // std::thread gb_thread{ tick, std::ref(gb) };
+  const char *glsl_version = "#version 130";
+  ImGui::StyleColorsDark();
+  ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+  ImGui_ImplOpenGL3_Init(glsl_version);
+
+  // Set up our game screen display texture
+  GLuint screen_texture;
+  glGenTextures(1, &screen_texture);
+  glBindTexture(GL_TEXTURE_2D, screen_texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+                  GL_CLAMP_TO_EDGE); // This is required on WebGL for non
+                                     // power-of-two textures
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Same
+
+  // Tile Map and BG Map textures
+  GLuint bg_texture, tile_map_texture;
+  glGenTextures(1, &bg_texture);
+  glBindTexture(GL_TEXTURE_2D, bg_texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+                  GL_CLAMP_TO_EDGE); // This is required on WebGL for non
+                                     // power-of-two textures
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); //
+  // Same
+
+  glGenTextures(1, &tile_map_texture);
+  glBindTexture(GL_TEXTURE_2D, tile_map_texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+                  GL_CLAMP_TO_EDGE); // This is required on WebGL for non
+                                     // power-of-two textures
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); //
+  // Same
 
   using namespace std::chrono_literals;
   // A vertical refresh happens every 70224 cycles (17556 clocks) (140448 in GBC
@@ -310,89 +322,89 @@ int main(int argc, char **argv) {
     cycles = 0;
     if (running) {
       cycles += gb->Tick(
-          gb->max_cycles_per_vertical_refresh);  // one full screen refresh
-                                                 // worth of cycles
+          gb->max_cycles_per_vertical_refresh); // one full screen refresh
+                                                // worth of cycles
     }
     while (SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
       switch (event.type) {
-        case SDL_QUIT:
+      case SDL_QUIT:
+        quit = true;
+        logger->info("Quitting");
+        break;
+      case SDL_KEYDOWN:
+        switch (event.key.keysym.sym) {
+        case SDLK_ESCAPE:
           quit = true;
-          logger->info("Quitting");
           break;
-        case SDL_KEYDOWN:
-          switch (event.key.keysym.sym) {
-            case SDLK_ESCAPE:
-              quit = true;
-              break;
-            case SDLK_F1:
-              gb->SaveState();
-              logger->info("Saving state");
-              break;
-            case SDLK_F3:
-              logger->info("Loading state");
-              gb->LoadState();
-              break;
-            case SDLK_z:
-              bitmask_clear(joypad[0], INPUT_B);
-              break;
-            case SDLK_x:
-              bitmask_clear(joypad[0], INPUT_A);
-              break;
-            case SDLK_DOWN:
-              bitmask_clear(joypad[1], INPUT_DOWN);
-              break;
-            case SDLK_UP:
-              bitmask_clear(joypad[1], INPUT_UP);
-              break;
-            case SDLK_LEFT:
-              bitmask_clear(joypad[1], INPUT_LEFT);
-              break;
-            case SDLK_RIGHT:
-              bitmask_clear(joypad[1], INPUT_RIGHT);
-              break;
-            case SDLK_RETURN:
-              bitmask_clear(joypad[0], INPUT_START);
-              break;
-            case SDLK_RSHIFT:
-              bitmask_clear(joypad[0], INPUT_SELECT);
-              break;
-            default:
-              break;
-          }
+        case SDLK_F1:
+          gb->SaveState();
+          logger->info("Saving state");
           break;
-        case SDL_KEYUP:
-          switch (event.key.keysym.sym) {
-            case SDLK_z:
-              bitmask_set(joypad[0], INPUT_B);
-              break;
-            case SDLK_x:
-              bitmask_set(joypad[0], INPUT_A);
-              break;
-            case SDLK_DOWN:
-              bitmask_set(joypad[1], INPUT_DOWN);
-              break;
-            case SDLK_UP:
-              bitmask_set(joypad[1], INPUT_UP);
-              break;
-            case SDLK_LEFT:
-              bitmask_set(joypad[1], INPUT_LEFT);
-              break;
-            case SDLK_RIGHT:
-              bitmask_set(joypad[1], INPUT_RIGHT);
-              break;
-            case SDLK_RETURN:
-              bitmask_set(joypad[0], INPUT_START);
-              break;
-            case SDLK_RSHIFT:
-              bitmask_set(joypad[0], INPUT_SELECT);
-              break;
-            default:
-              break;
-          }
+        case SDLK_F3:
+          logger->info("Loading state");
+          gb->LoadState();
+          break;
+        case SDLK_z:
+          bitmask_clear(joypad[0], INPUT_B);
+          break;
+        case SDLK_x:
+          bitmask_clear(joypad[0], INPUT_A);
+          break;
+        case SDLK_DOWN:
+          bitmask_clear(joypad[1], INPUT_DOWN);
+          break;
+        case SDLK_UP:
+          bitmask_clear(joypad[1], INPUT_UP);
+          break;
+        case SDLK_LEFT:
+          bitmask_clear(joypad[1], INPUT_LEFT);
+          break;
+        case SDLK_RIGHT:
+          bitmask_clear(joypad[1], INPUT_RIGHT);
+          break;
+        case SDLK_RETURN:
+          bitmask_clear(joypad[0], INPUT_START);
+          break;
+        case SDLK_RSHIFT:
+          bitmask_clear(joypad[0], INPUT_SELECT);
           break;
         default:
           break;
+        }
+        break;
+      case SDL_KEYUP:
+        switch (event.key.keysym.sym) {
+        case SDLK_z:
+          bitmask_set(joypad[0], INPUT_B);
+          break;
+        case SDLK_x:
+          bitmask_set(joypad[0], INPUT_A);
+          break;
+        case SDLK_DOWN:
+          bitmask_set(joypad[1], INPUT_DOWN);
+          break;
+        case SDLK_UP:
+          bitmask_set(joypad[1], INPUT_UP);
+          break;
+        case SDLK_LEFT:
+          bitmask_set(joypad[1], INPUT_LEFT);
+          break;
+        case SDLK_RIGHT:
+          bitmask_set(joypad[1], INPUT_RIGHT);
+          break;
+        case SDLK_RETURN:
+          bitmask_set(joypad[0], INPUT_START);
+          break;
+        case SDLK_RSHIFT:
+          bitmask_set(joypad[0], INPUT_SELECT);
+          break;
+        default:
+          break;
+        }
+        break;
+      default:
+        break;
       }
     }
 
@@ -400,16 +412,114 @@ int main(int argc, char **argv) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     ImGui::NewFrame();
-    // ImGui::ShowDemoWindow();
+    ImGui::ShowDemoWindow();
+    if (ImGui::BeginMainMenuBar()) {
+      if (ImGui::BeginMenu("File")) {
+        if (ImGui::MenuItem("Open", "CTRL+O", false)) {
+          ImGui::OpenPopup("Open File");
+          if (ImGui::BeginPopupModal("Open File", nullptr,
+                                     ImGuiWindowFlags_AlwaysAutoResize |
+                                         ImGuiWindowFlags_MenuBar)) {
+            // display files in current directory
+            // button to go up directory tree
+            // only show .gb files?
+            ImGui::Text("%s", roms_dir.string().c_str());
+
+            // for now just list roms in rom dir
+            ImGui::SameLine();
+            if (ImGui::Button("^")) {
+              roms_dir = roms_dir.parent_path();
+            }
+            // for (auto &p :
+            // std::filesystem::recursive_directory_iterator(roms_dir))
+            // {
+            for (auto &p : std::filesystem::directory_iterator(roms_dir)) {
+              if (p.is_directory()) {
+                if (ImGui::Selectable(p.path().string().c_str(), true,
+                                      ImGuiSelectableFlags_DontClosePopups)) {
+                  roms_dir /= p.path();
+                  break;
+                }
+              }
+              // else show all .gb files
+              if (p.path().extension() == ".gb") {
+                if (ImGui::Selectable(p.path().string().c_str())) {
+                  auto file = std::ifstream{p.path(), std::ios::binary};
+                  auto cart = Load(file);
+                  gb = std::make_unique<Gameboy>(*cart,
+                                                 p.path().stem().string());
+                  running = true;
+                }
+              }
+            }
+
+            if (ImGui::Button("Cancel")) {
+              ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+          }
+          ImGui::End();
+        }
+        ImGui::EndMenu();
+      }
+      if (ImGui::BeginMenu("Edit")) {
+        if (ImGui::MenuItem("Undo", "CTRL+Z")) {
+        }
+        if (ImGui::MenuItem("Redo", "CTRL+Y", false, false)) {
+        } // Disabled item
+        ImGui::Separator();
+        if (ImGui::MenuItem("Cut", "CTRL+X")) {
+        }
+        if (ImGui::MenuItem("Copy", "CTRL+C")) {
+        }
+        if (ImGui::MenuItem("Paste", "CTRL+V")) {
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMainMenuBar();
+    }
+    ImGui::Begin("Screen");
+    auto pixel_data = gb->ppu.Render().release();
+    glBindTexture(GL_TEXTURE_2D, screen_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 160, 144, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, pixel_data);
+    ImVec2 sz = ImGui::GetContentRegionAvail();
+    ImGui::Image((void *)(intptr_t)screen_texture, sz);
+    delete[] pixel_data;
+    ImGui::End();
+
+    if (ui_draw_tile_map) {
+      (ImGui::Begin("Tile Map"));
+      auto tile_map_data = gb->ppu.RenderTiles().release();
+      glBindTexture(GL_TEXTURE_2D, tile_map_texture);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 128, 192, 0, GL_RGBA,
+                   GL_UNSIGNED_BYTE, tile_map_data);
+      sz = ImGui::GetContentRegionAvail();
+      ImGui::Image((void *)(intptr_t)tile_map_texture, sz);
+      delete[] tile_map_data;
+      ImGui::End();
+    }
+
+    if (ui_draw_bg_map) {
+      ImGui::Begin("BG Map");
+      auto bg_map_data = gb->ppu.RenderBackgroundTileMap().release();
+      glBindTexture(GL_TEXTURE_2D, bg_texture);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 256, 256, 0, GL_RGBA,
+                   GL_UNSIGNED_BYTE, bg_map_data);
+      sz = ImGui::GetContentRegionAvail();
+      ImGui::Image((void *)(intptr_t)bg_texture, sz);
+      delete[] bg_map_data;
+      ImGui::End();
+    }
 
     if (ImGui::Begin("CPU Debug")) {
       ShowCPUDebug(*gb, running);
     }
     ImGui::End();
 
-    ImGui::Begin("Sprites");
-    ShowSpriteDebug(*gb);
-    ImGui::End();
+    // ImGui::Begin("Sprites");
+    // ShowSpriteDebug(*gb);
+    // ImGui::End();
 
     ImGui::Begin("Games");
     if (ImGui::Button("Open File")) {
@@ -421,7 +531,7 @@ int main(int argc, char **argv) {
       // display files in current directory
       // button to go up directory tree
       // only show .gb files?
-      ImGui::Text(roms_dir.string().c_str());
+      ImGui::Text("%s", roms_dir.string().c_str());
 
       // for now just list roms in rom dir
       ImGui::SameLine();
@@ -459,16 +569,6 @@ int main(int argc, char **argv) {
 
     if (ImGui::Begin("PPU Debug")) {
       ShowPPUDebug(*gb, framelimit, ui_draw_bg_map, ui_draw_tile_map);
-      if (ui_draw_bg_map) {
-        SDL_ShowWindow(bg_map_win);
-      } else {
-        SDL_HideWindow(bg_map_win);
-      }
-      if (ui_draw_tile_map) {
-        SDL_ShowWindow(tile_map_win);
-      } else {
-        SDL_HideWindow(tile_map_win);
-      }
     }
     ImGui::End();
 
@@ -477,7 +577,6 @@ int main(int argc, char **argv) {
     }
     ImGui::End();
     ImGui::Render();
-    SDL_GL_MakeCurrent(window, gl_context);
     glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -488,31 +587,17 @@ int main(int argc, char **argv) {
     // instruction? 	gb.enable_interrupt();
     //}
 
-    SDL_UpdateTexture(tex, nullptr, gb->ppu.Render().get(), 160 * 4);
-    SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, tex, nullptr, nullptr);
-    SDL_RenderPresent(ren);
-
-    SDL_UpdateTexture(bg_map_tex, nullptr,
-                      gb->ppu.RenderBackgroundTileMap().get(), 256 * 4);
-    SDL_RenderClear(bg_map_ren);
-    SDL_RenderCopy(bg_map_ren, bg_map_tex, nullptr, nullptr);
-    SDL_RenderPresent(bg_map_ren);
-
-    SDL_UpdateTexture(tile_map_tex, nullptr, gb->ppu.RenderTiles().get(),
-                      128 * 4);
-    SDL_RenderClear(tile_map_ren);
-    SDL_RenderCopy(tile_map_ren, tile_map_tex, nullptr, nullptr);
-    SDL_RenderPresent(tile_map_ren);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration_us =
         std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     auto duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::ostringstream s;
-    s << "Loop took " << duration.count() << " ms (" << duration_us.count()
-      << " us)" << std::endl;
-    SDL_SetWindowTitle(win, s.str().c_str());
+    // This takes 3ms...
+    // and fucks up the frame limit timer
+    // std::ostringstream s;
+    // s << "Loop took " << duration.count() << " ms (" << duration_us.count()
+    //   << " us)" << std::endl;
+    // SDL_SetWindowTitle(win, s.str().c_str());
 
     if (framelimit && duration < tickrate) {
       // sleep for remaining time
@@ -526,10 +611,6 @@ int main(int argc, char **argv) {
 
   SDL_GL_DeleteContext(gl_context);
   SDL_DestroyWindow(window);
-
-  SDL_DestroyWindow(win);
-  SDL_DestroyRenderer(ren);
-  SDL_DestroyTexture(tex);
 
   SDL_Quit();
 
