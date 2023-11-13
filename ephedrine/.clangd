@@ -1,0 +1,15 @@
+CompileFlags:
+  Compiler: g++
+  # Remove: [ -w, -free, -mlongcalls, -fipa-pta, -mtext-section-literals, ]
+  Add: [-std=c++17, -Wall, -Wformat, -Wextra, -pedantic, -Wshadow, -Wnon-virtual-dtor, -Wimplicit-fallthrough, -Wlifetime,
+        -I/home/keeg/code/imgui,
+        -I/home/keeg/code/imgui/backends,
+        -I/usr/include,
+        -I./include,
+        -L.,
+        -L/usr/lib,
+        -lGL,
+        sdl2-config --libs,
+        -ldl,
+        sdl2-config --cflags,
+  ]
